@@ -1,0 +1,320 @@
+/* Custom CSS Variables for CloudGreen OS */
+:root {
+  --bg-dark: #090c10;
+  --bg-card: rgba(18, 25, 33, 0.6);
+  --border-card: rgba(46, 160, 67, 0.2);
+  --border-hover: rgba(46, 160, 67, 0.6);
+  --text-main: #f0f6fc;
+  --text-muted: #8b949e;
+  --accent: #2ea043;
+  --accent-glow: rgba(46, 160, 67, 0.4);
+  --error: #f85149;
+  
+  --glass-blur: blur(12px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-dark);
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(46,160,67,0.08) 0%, transparent 50%),
+    radial-gradient(circle at 85% 30%, rgba(46,160,67,0.05) 0%, transparent 50%);
+  background-attachment: fixed;
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+}
+
+/* Layout */
+.app-shell {
+  display: flex;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.sidebar {
+  width: 280px;
+  padding: 32px 24px;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebar h1 {
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, #4aec74 0%, #2ea043 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.sidebar p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-link {
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+}
+
+.main-content {
+  flex: 1;
+  padding: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+  gap: 24px;
+  align-content: start;
+}
+
+h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding-bottom: 12px;
+}
+
+.card {
+  background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 24px -8px rgba(0,0,0,0.5);
+  animation: fadeUp 0.5s ease-out forwards;
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 8px 32px -8px var(--accent-glow);
+  transform: translateY(-2px);
+}
+
+.chart {
+  width: 100%;
+  height: 220px;
+  margin-top: 8px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+button {
+  background: rgba(46, 160, 67, 0.1);
+  border: 1px solid var(--accent);
+  color: #4aec74;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+button:hover {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: transparent;
+  border-color: rgba(255,255,255,0.1);
+  color: var(--text-muted);
+}
+
+input {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-main);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  flex: 1;
+  min-width: 120px;
+  transition: border 0.2s;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.textarea {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #4aec74;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+  width: 100%;
+  transition: border 0.2s;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.kv {
+  display: grid;
+  gap: 8px;
+  background: rgba(0,0,0,0.2);
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.kv p {
+  margin: 0;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: #4aec74;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--error);
+  font-size: 0.9rem;
+  background: rgba(248, 81, 73, 0.1);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(248, 81, 73, 0.2);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: pulse-animation 2s infinite;
+  margin-right: 8px;
+}
+
+@keyframes pulse-animation {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 160, 67, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(46, 160, 67, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 160, 67, 0); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* L5 Adaptive UI Constraints - Degrade cleanly on high carbon intensity */
+body.theme-critical {
+  background-image: none;
+  background-color: #000;
+}
+
+body.theme-critical .card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  box-shadow: none;
+  animation: none;
+  transform: none;
+}
+
+body.theme-critical .card:hover {
+  border-color: #8b949e;
+  box-shadow: none;
+  transform: none;
+}
+
+body.theme-critical .pulse {
+  animation: none;
+  box-shadow: none;
+  background-color: var(--error);
+}
+
+body.theme-critical .sidebar h1 {
+  background: none;
+  -webkit-text-fill-color: var(--text-main);
+  color: var(--text-main);
+}
+
+body.theme-critical button {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: var(--text-main);
+}
+
+body.theme-critical button:hover {
+  background: #30363d;
+  box-shadow: none;
+}

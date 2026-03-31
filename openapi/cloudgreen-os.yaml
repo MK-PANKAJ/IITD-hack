@@ -1,0 +1,68 @@
+openapi: 3.1.0
+info:
+  title: CloudGreen OS MVP API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8787
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /api/carbon/current:
+    get:
+      summary: Current carbon signal
+      parameters:
+        - in: query
+          name: zone
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Carbon signal
+  /api/token/mint:
+    post:
+      summary: Mint demo carbon tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                account:
+                  type: string
+                amount:
+                  type: number
+              required: [account, amount]
+      responses:
+        "200":
+          description: Mint result
+  /api/token/transfer:
+    post:
+      summary: Transfer demo carbon tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from:
+                  type: string
+                to:
+                  type: string
+                amount:
+                  type: number
+              required: [from, to, amount]
+      responses:
+        "200":
+          description: Transfer result
+  /api/executive/overview:
+    get:
+      summary: Executive KPI overview
+      responses:
+        "200":
+          description: KPI payload

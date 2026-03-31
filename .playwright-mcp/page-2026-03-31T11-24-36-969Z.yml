@@ -1,0 +1,77 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - heading "CloudGreen OS MVP" [level=1] [ref=e5]
+    - paragraph [ref=e6]: Carbon Signal Bus, GreenOps Advisor, VC issuance, and marketplace-ready APIs.
+  - generic [ref=e7]:
+    - heading "Live Carbon Status" [level=2] [ref=e8]
+    - paragraph [ref=e9]: Loading dashboard...
+  - generic [ref=e10]:
+    - heading "Phase 2.1 — GreenOps Advisor (AI)" [level=2] [ref=e11]
+    - paragraph [ref=e12]: Send code + an energy estimate context. If Ollama is running locally, it will respond; otherwise a safe fallback is used.
+    - textbox [ref=e13]: "for i in range(1000000): x = i*i y = x%97"
+    - generic [ref=e14]:
+      - button "Analyze" [ref=e15] [cursor=pointer]
+      - button "Use sample" [ref=e16] [cursor=pointer]
+  - generic [ref=e17]:
+    - heading "Phase 2.2 — ZK Proofs (Range Proof Demo)" [level=2] [ref=e18]
+    - paragraph [ref=e19]: Local proof round-trip placeholder (next step is replacing demo with real circom/snarkjs circuit).
+    - generic [ref=e20]:
+      - spinbutton [ref=e21]: "250"
+      - spinbutton [ref=e22]: "100"
+      - spinbutton [ref=e23]: "400"
+    - generic [ref=e24]:
+      - button "Generate Proof" [ref=e25] [cursor=pointer]
+      - button "Verify Proof" [disabled] [ref=e26] [cursor=pointer]
+  - generic [ref=e27]:
+    - heading "Phase 2.3 — Multi-Cloud Routing Plan" [level=2] [ref=e28]
+    - paragraph [ref=e29]: Returns a local routing/scheduling plan based on the current carbon mode (Terraform/OpenTofu equivalent text is included).
+    - generic [ref=e30]:
+      - textbox [ref=e31]: supplier-import
+      - button "Get Plan" [ref=e32] [cursor=pointer]
+  - generic [ref=e33]:
+    - heading "Scope 3 Credential (VC MVP)" [level=2] [ref=e34]
+    - generic [ref=e35]:
+      - button "Issue Demo VC" [ref=e36] [cursor=pointer]
+      - textbox "Credential hash" [ref=e37]
+      - button "Verify Hash" [ref=e38] [cursor=pointer]
+    - paragraph
+  - generic [ref=e39]:
+    - heading "Workload Decisions" [level=2] [ref=e40]
+    - list
+  - generic [ref=e41]:
+    - heading "Phase 3.1 — CSRD Compliance Engine" [level=2] [ref=e42]
+    - generic [ref=e43]:
+      - textbox "Organization" [ref=e44]: CloudGreen Demo Org
+      - button "Generate CSRD Report" [ref=e45] [cursor=pointer]
+  - generic [ref=e46]:
+    - heading "Phase 3.2/3.3 — Supplier Portal + Graph Exposure" [level=2] [ref=e47]
+    - generic [ref=e48]:
+      - button "Onboard Demo Supplier" [ref=e49] [cursor=pointer]
+      - button "Upload Demo CSV" [ref=e50] [cursor=pointer]
+      - button "Run Exposure Query" [ref=e51] [cursor=pointer]
+  - generic [ref=e52]:
+    - heading "Phase 3.4 — Executive Dashboard + On-Call" [level=2] [ref=e53]
+    - generic [ref=e54]:
+      - button "Create Test Incident" [ref=e55] [cursor=pointer]
+      - button "Refresh Executive KPIs" [ref=e56] [cursor=pointer]
+  - generic [ref=e57]:
+    - heading "Phase 4.1/4.2 — Carbon Tokens + Marketplace Settlement" [level=2] [ref=e58]
+    - generic [ref=e59]:
+      - button "Login as Admin" [ref=e60] [cursor=pointer]
+      - textbox "Bearer token" [ref=e61]
+    - generic [ref=e62]:
+      - textbox "Mint account" [ref=e63]: org-treasury
+      - spinbutton [ref=e64]: "1000"
+      - button "Mint" [ref=e65] [cursor=pointer]
+    - generic [ref=e66]:
+      - textbox "From" [ref=e67]: org-treasury
+      - textbox "To" [ref=e68]: supplier-rewards
+      - spinbutton [ref=e69]: "100"
+      - button "Transfer" [ref=e70] [cursor=pointer]
+  - generic [ref=e71]:
+    - heading "Phase 4.3 — GraphQL API Layer" [level=2] [ref=e72]
+    - paragraph [ref=e73]: Runs at http://localhost:4000/graphql with Yoga.
+    - button "Run GraphQL Health Query" [ref=e74] [cursor=pointer]
+  - generic [ref=e75]:
+    - heading "Phase 4.4 — Product Analytics" [level=2] [ref=e76]
+    - button "Track Dashboard Event" [ref=e77] [cursor=pointer]
