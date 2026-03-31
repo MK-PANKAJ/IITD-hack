@@ -79,6 +79,7 @@ function App() {
   const [codeInput, setCodeInput] = useState("for i in range(1000000):\n    x = i*i\n    y = x%97");
   const [greenOps, setGreenOps] = useState<GreenOpsAnalyze | null>(null);
   const [greenOpsError, setGreenOpsError] = useState<string | null>(null);
+  const [isGreenOpsLoading, setIsGreenOpsLoading] = useState(false);
 
   // Phase 2.2 — ZK proof demo (range proof placeholder)
   const [emissionKg, setEmissionKg] = useState<number>(250);
@@ -91,7 +92,7 @@ function App() {
   const [routingWorkload, setRoutingWorkload] = useState("supplier-import");
   const [routing, setRouting] = useState<RoutingPlan | null>(null);
   const [routingErr, setRoutingErr] = useState<string | null>(null);
-  
+
   // Phase 3 — CSRD & Enterprise
   const [csrd, setCsrd] = useState<CsrdReport | null>(null);
   const [csrdOrg, setCsrdOrg] = useState("CloudGreen Demo Org");
@@ -99,7 +100,7 @@ function App() {
   const [csvRes, setCsvRes] = useState<string>("");
   const [graphRes, setGraphRes] = useState<string>("");
   const [incidentRes, setIncidentRes] = useState<string>("");
-  
+
   // Phase 4 — Token & Ecosystem
   const [tokenRes, setTokenRes] = useState<string>("");
   const [analyticsRes, setAnalyticsRes] = useState<string>("");
@@ -139,29 +140,33 @@ function App() {
   const [pipeRunning, setPipeRunning] = useState(false);
 
   const runE2EPipeline = async () => {
+    if (!authToken) {
+      setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Error: You must 'Authenticate as Admin' below before running the pipeline.", type: "error" }]);
+      return;
+    }
     setPipeRunning(true);
     setPipeLog([]);
-    const log = (msg: string, type: "info"|"success"|"error" = "info") => {
-      setPipeLog(prev => [...prev, { ts: new Date().toISOString().split("T")[1].slice(0,-1), msg, type }]);
+    const log = (msg: string, type: "info" | "success" | "error" = "info") => {
+      setPipeLog(prev => [...prev, { ts: new Date().toISOString().split("T")[1].slice(0, -1), msg, type }]);
     };
 
     try {
       log("Step 1: Supplier Submits Scope 3 Data...");
       await new Promise(r => setTimeout(r, 600));
       log("L1 Data Trust Layer: ZK-SNARK generated. Verifying claim without exposing raw data...", "info");
-      
+
       const zkRes = await fetch("/api/zk/proof", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emissionKg: 105, minKg: 50, maxKg: 200 }),
       }).then(r => r.json());
-      
+
       const verifyRes = await fetch("/api/zk/verify", {
-         method: "POST", headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({ commitment: zkRes.commitment, proof: zkRes.proof, emissionKg: 105, minKg: 50, maxKg: 200 })
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commitment: zkRes.commitment, proof: zkRes.proof, emissionKg: 105, minKg: 50, maxKg: 200 })
       }).then(r => r.json());
 
       if (verifyRes.verified) {
-         log(`Anchored proof on Hyperledger Fabric. Commitment: ${zkRes.commitment.slice(0, 16)}...`, "success");
+        log(`Anchored proof on Hyperledger Fabric. Commitment: ${zkRes.commitment.slice(0, 16)}...`, "success");
       }
 
       log("Step 2: CI/CD Deploys Workload & Checks Kafka Signal Bus...");
@@ -173,9 +178,9 @@ function App() {
       log("Step 3: L3 Orchestration check (Green Region Available?)...");
       const routeRes = await fetchJson<RoutingPlan>(`/api/routing/plan?workload=batch-job`);
       if (routeRes.mode === 'critical') {
-          log(`No green region available. Argo defers batch job until green window.`, "error");
+        log(`No green region available. Argo defers batch job until green window.`, "error");
       } else {
-          log(`Yes! Karpenter provisions node in low-carbon region: ${routeRes.target.provider}/${routeRes.target.region}.`, "success");
+        log(`Yes! Karpenter provisions node in low-carbon region: ${routeRes.target.provider}/${routeRes.target.region}.`, "success");
       }
 
       log("Step 4: L4 Intelligence begins...", "info");
@@ -188,11 +193,15 @@ function App() {
       log("Step 5: Auto-generating GitHub PR with optimizations...", "success");
       await new Promise(r => setTimeout(r, 500));
       log("Deploying Token Reward for supplier integration...");
-      await fetch("/api/token/mint", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const mintReq = await fetch("/api/token/mint", {
+        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
         body: JSON.stringify({ account: "supplier-autopipeline", amount: 50 }),
       });
       
+      if (!mintReq.ok) {
+        throw new Error("401 Unauthorized - Please click 'Authenticate as Admin' at the bottom of the page first.");
+      }
+
       log("L5 Ecosystem: 50 Green Tokens minted. End-to-End Pipeline Complete.", "success");
       
     } catch (e: any) {
@@ -225,12 +234,15 @@ function App() {
   const analyzeGreenOps = async () => {
     setGreenOpsError(null);
     setGreenOps(null);
+    setIsGreenOpsLoading(true);
     try {
       const u = `/api/greenops/analyze?code=${encodeURIComponent(codeInput)}`;
       const json = await fetchJson<GreenOpsAnalyze>(u);
       setGreenOps(json);
     } catch (e: any) {
       setGreenOpsError(e?.message || "GreenOps request failed");
+    } finally {
+      setIsGreenOpsLoading(false);
     }
   };
 
@@ -303,13 +315,21 @@ function App() {
   };
 
   const uploadCsv = async () => {
+    if (!authToken) {
+      setCsvRes("Error: You must hit 'Authenticate as Admin' below first.");
+      return;
+    }
     const csv = "supplier,scope,emissionsKg\nAcme Steel,scope3,120.5\nAcme Steel,scope2,54.1\nBlue Plastics,scope3,310.2";
     const res = await fetch("/api/suppliers/emissions/upload", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ csv }),
     });
     const json = await res.json();
+    if (!res.ok) {
+      setCsvRes(`Upload failed: ${json.error}`);
+      return;
+    }
     setCsvRes(`CSV imported rows: ${json.imported} (batch: ${json.batchId})`);
     refetchOverview();
   };
@@ -327,12 +347,20 @@ function App() {
   };
 
   const createIncident = async () => {
+    if (!authToken) {
+      setIncidentRes("Error: Authentication required to trigger alerts.");
+      return;
+    }
     const res = await fetch("/api/oncall/incidents", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ title: "Supplier upload latency spike", severity: "high", owner: "oncall-greenops" }),
     });
     const json = await res.json();
+    if (!res.ok) {
+      setIncidentRes(`Failed: ${json.error}`);
+      return;
+    }
     setIncidentRes(`Incident created: ${json.id} (${json.severity})`);
     refetchOverview();
   };
@@ -373,7 +401,7 @@ function App() {
   };
 
   const trackAnalytics = async () => {
-    await fetch("/api/analytics/events", {
+    await fetch("/api/telemetry/data", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -382,7 +410,7 @@ function App() {
         properties: { section: "phase4", ts: new Date().toISOString() },
       }),
     });
-    const summary = await fetchJson<AnalyticsSummary>("/api/analytics/summary");
+    const summary = await fetchJson<AnalyticsSummary>("/api/telemetry/summary");
     setAnalyticsRes(`Total events: ${summary.totalEvents}, dashboard_view: ${summary.eventCounts.dashboard_view || 0}`);
   };
 
@@ -436,14 +464,14 @@ function App() {
                   <AreaChart data={data.historical}>
                     <defs>
                       <linearGradient id="colorIntensity" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2ea043" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#2ea043" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#2ea043" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#2ea043" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="hour" stroke="#8b949e" fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis stroke="#8b949e" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{ backgroundColor: 'rgba(18,25,33,0.9)', border: '1px solid rgba(46,160,67,0.3)', borderRadius: '8px' }}
                       itemStyle={{ color: '#f0f6fc' }}
                     />
@@ -463,9 +491,9 @@ function App() {
           <h2>End-to-End Interconnected Workflow Log</h2>
           <p className="muted">L1 Trust &rarr; L3 Orchestrator &rarr; L4 Intelligence &rarr; L5 Token Reward</p>
           <div className="row">
-             <button onClick={runE2EPipeline} disabled={pipeRunning}>
-               {pipeRunning ? "Processing Lifecycle..." : "Deploy Sample Workload"}
-             </button>
+            <button onClick={runE2EPipeline} disabled={pipeRunning}>
+              {pipeRunning ? "Processing Lifecycle..." : "Deploy Sample Workload"}
+            </button>
           </div>
           {pipeLog.length > 0 && (
             <div className="textarea" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '120px' }}>
@@ -492,9 +520,16 @@ function App() {
             rows={5}
           />
           <div className="row">
-            <button onClick={analyzeGreenOps}>Analyze Energy</button>
+            <button onClick={analyzeGreenOps} disabled={isGreenOpsLoading}>
+              {isGreenOpsLoading ? "Analyzing..." : "Analyze Energy"}
+            </button>
             <button onClick={() => setCodeInput("for i in range(1000000):\n    x = i*i\n    y = x%97")}>Load Sample</button>
           </div>
+          {isGreenOpsLoading ? (
+            <p className="muted" style={{ fontStyle: "italic", animation: "pulse 1.5s infinite" }}>
+              ⏳ Llama 3.1 is analyzing code and generating optimizations. This may take up to 60 seconds...
+            </p>
+          ) : null}
           {greenOpsError ? <p className="error">{greenOpsError}</p> : null}
           {greenOps ? (
             <div className="kv">
@@ -524,7 +559,7 @@ function App() {
               <p>Proof: <span className="mono">{zk.proof.slice(0, 16)}...</span></p>
             </div>
           ) : null}
-          {zkVerify ? <p className="error" style={{color: '#4aec74', background: 'rgba(46,160,67,0.1)', borderColor: 'rgba(46,160,67,0.2)'}}>{zkVerify}</p> : null}
+          {zkVerify ? <p className="error" style={{ color: '#4aec74', background: 'rgba(46,160,67,0.1)', borderColor: 'rgba(46,160,67,0.2)' }}>{zkVerify}</p> : null}
         </section>
 
         <section className="card">
@@ -568,6 +603,15 @@ function App() {
             <div className="kv">
               <p>ID: <strong>{csrd.reportId}</strong></p>
               <p>Risk: <strong>{csrd.summary.riskClass}</strong> | Emitted: <strong>{csrd.summary.totalKg} kgCO2e</strong></p>
+              
+              <div style={{ marginTop: "12px", padding: "12px", background: "#f0f6fc", borderRadius: "6px", color: "#1b1f23", border: "1px solid #d0d7de" }}>
+                <p className="muted" style={{ fontSize: "11px", marginBottom: "8px", color: "#6e7781" }}>Parsed Report Preview (CSRD-Compliant):</p>
+                <div 
+                  className="report-preview"
+                  style={{ fontSize: "14px", lineHeight: "1.5" }}
+                  dangerouslySetInnerHTML={{ __html: csrd.htmlPreview }}
+                />
+              </div>
             </div>
           ) : null}
         </section>
@@ -594,7 +638,7 @@ function App() {
             <button onClick={createIncident}>Trigger Alert</button>
             <button onClick={() => refetchOverview()}>Sync KPIs</button>
           </div>
-          {incidentRes ? <p className="mono" style={{color: '#f85149'}}>{incidentRes}</p> : null}
+          {incidentRes ? <p className="mono" style={{ color: '#f85149' }}>{incidentRes}</p> : null}
           {execOverview ? (
             <div className="kv">
               <p>Suppliers: <strong>{execOverview.suppliers}</strong> | Rows: <strong>{execOverview.uploadedEmissionRows}</strong></p>

@@ -1,3 +1,4 @@
+require("dotenv").config();
 const Fastify = require("fastify");
 const cors = require("@fastify/cors");
 const axios = require("axios");
@@ -53,17 +54,17 @@ function estimateFromWeather(tempC, windKmh) {
 }
 
 async function getCarbonSignal(zone = "IN") {
-  const co2Key = process.env.CO2SIGNAL_API_KEY;
-  if (co2Key) {
+  const apiKey = process.env.CO2SIGNAL_API_KEY;
+  if (apiKey) {
     try {
-      const response = await axios.get("https://api.co2signal.com/v1/latest", {
-        headers: { "auth-token": co2Key },
-        params: { countryCode: zone },
+      const response = await axios.get("https://api.electricitymap.org/v3/carbon-intensity/latest", {
+        headers: { "auth-token": apiKey },
+        params: { zone },
         timeout: 8000,
       });
-      const intensity = response.data?.data?.carbonIntensity;
+      const intensity = response.data?.carbonIntensity;
       if (typeof intensity === "number") {
-        return { zone, intensity, source: "co2signal" };
+        return { zone, intensity: Math.round(intensity), source: "electricity-maps" };
       }
     } catch {
       // Intentional silent fallback to free weather estimator.
@@ -136,7 +137,7 @@ async function tryOllamaGenerate({ code, energyKw }) {
   const prompt = code;
 
   try {
-    const r = await axios.post(`${baseUrl}/api/generate`, { model, system, prompt, stream: false }, { timeout: 6000 });
+    const r = await axios.post(`${baseUrl}/api/generate`, { model, system, prompt, stream: false }, { timeout: 60000 });
     const responseText = r.data?.response;
     if (typeof responseText === "string" && responseText.trim().length > 0) return responseText.trim();
   } catch {
@@ -602,7 +603,7 @@ const analyticsEventSchema = z.object({
   properties: z.record(z.string(), z.any()).optional(),
 });
 
-app.post("/api/analytics/events", async (request, reply) => {
+app.post("/api/telemetry/data", async (request, reply) => {
   const parsed = analyticsEventSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
   const events = await loadJson(ANALYTICS_STORE, []);
@@ -616,7 +617,7 @@ app.post("/api/analytics/events", async (request, reply) => {
   return event;
 });
 
-app.get("/api/analytics/summary", async () => {
+app.get("/api/telemetry/summary", async () => {
   const events = await loadJson(ANALYTICS_STORE, []);
   const eventCounts = {};
   events.forEach((e) => {
