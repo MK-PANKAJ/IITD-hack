@@ -1,0 +1,122 @@
+# =============================================================================
+# CloudGreen OS — ENTSO-E Carbon Intensity Producer Deployment
+# Runs in kafka-system namespace alongside the Kafka cluster.
+# Publishes to the carbon-events topic every 15 minutes.
+#
+# Apply: kubectl apply -f infra/entso-e/entso-e-producer.yaml
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: entso-e-producer
+  namespace: kafka-system
+  labels:
+    app: entso-e-producer
+    app.kubernetes.io/name: entso-e-producer
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: carbon-pipeline
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # Only one producer instance needed
+  selector:
+    matchLabels:
+      app: entso-e-producer
+  template:
+    metadata:
+      labels:
+        app: entso-e-producer
+        app.kubernetes.io/name: entso-e-producer
+        app.kubernetes.io/part-of: cloudgreen-os
+        app.kubernetes.io/component: carbon-pipeline
+    spec:
+      serviceAccountName: default
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: producer
+          # Build & push this image from services/entso-e-producer/
+          # docker build -t cloudgreen/entso-e-producer:latest services/entso-e-producer/
+          # Update the image reference below to your registry
+          image: cloudgreen/entso-e-producer:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            # ── ENTSO-E Configuration ───────────────────────────────────
+            - name: ENTSOE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: entso-e-credentials
+                  key: ENTSOE_API_TOKEN
+            - name: ENTSOE_BIDDING_ZONE
+              value: "10YDE-VE-------2"   # Germany; change per deployment
+            - name: ENTSOE_BASE_URL
+              value: "https://web-api.tp.entsoe.eu"
+
+            # ── Kafka ───────────────────────────────────────────────────
+            - name: KAFKA_BROKERS
+              value: "cloudgreen-kafka-kafka-bootstrap.kafka-system.svc.cluster.local:9092"
+            - name: KAFKA_TOPIC
+              value: "carbon-events"
+            - name: KAFKA_CLIENT_ID
+              value: "entso-e-producer"
+
+            # ── Fallback APIs ───────────────────────────────────────────
+            - name: CO2SIGNAL_API_KEY
+              value: ""    # Optional: ElectricityMap API key
+            - name: FALLBACK_ZONE
+              value: "IN"
+            - name: FALLBACK_LATITUDE
+              value: "28.6139"
+            - name: FALLBACK_LONGITUDE
+              value: "77.209"
+
+            # ── Scheduling ──────────────────────────────────────────────
+            - name: POLL_CRON
+              value: "*/15 * * * *"
+            - name: RUN_ON_STARTUP
+              value: "true"
+
+            # ── Observability ───────────────────────────────────────────
+            - name: LOG_LEVEL
+              value: "info"
+            - name: NODE_ENV
+              value: "production"
+
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+          # No HTTP server to probe — use a startup exec check
+          startupProbe:
+            exec:
+              command: ["node", "-e", "process.exit(0)"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 10Mi
+
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

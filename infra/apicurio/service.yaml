@@ -1,0 +1,25 @@
+# Apicurio Registry — Service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apicurio-registry
+  namespace: registry-system
+  labels:
+    app: apicurio-registry
+    app.kubernetes.io/name: apicurio-registry
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: schema-registry
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/q/metrics"
+spec:
+  type: ClusterIP
+  selector:
+    app: apicurio-registry
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

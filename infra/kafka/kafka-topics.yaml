@@ -1,0 +1,111 @@
+# CloudGreen OS — Kafka Topics
+# Pre-created topics for the CloudGreen event-driven architecture.
+# Auto-create is DISABLED in the broker for governance.
+#
+# Apply: kubectl apply -f infra/kafka/kafka-topics.yaml
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: carbon-events
+  namespace: kafka-system
+  labels:
+    strimzi.io/cluster: cloudgreen-kafka
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: carbon-tracking
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: "604800000"          # 7 days
+    retention.bytes: "536870912"       # 512 MB per partition
+    cleanup.policy: delete
+    segment.bytes: "52428800"          # 50 MB segments
+    compression.type: lz4
+    min.insync.replicas: "1"
+    # Schema enforcement note: producers should use Apicurio serializer
+    # to validate against registered Avro/JSON schemas
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: workload-metrics
+  namespace: kafka-system
+  labels:
+    strimzi.io/cluster: cloudgreen-kafka
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: observability
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: "259200000"          # 3 days (high-volume, shorter retention)
+    retention.bytes: "268435456"       # 256 MB per partition
+    cleanup.policy: delete
+    segment.bytes: "26214400"          # 25 MB segments
+    compression.type: lz4
+    min.insync.replicas: "1"
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: greenops-recommendations
+  namespace: kafka-system
+  labels:
+    strimzi.io/cluster: cloudgreen-kafka
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: ai-pipeline
+spec:
+  partitions: 1    # Low-volume topic
+  replicas: 1
+  config:
+    retention.ms: "2592000000"         # 30 days
+    retention.bytes: "134217728"       # 128 MB per partition
+    cleanup.policy: compact            # Keep latest per key (workload ID)
+    segment.bytes: "26214400"
+    compression.type: lz4
+    min.insync.replicas: "1"
+    min.compaction.lag.ms: "3600000"   # 1 hour before compaction
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: supply-chain-events
+  namespace: kafka-system
+  labels:
+    strimzi.io/cluster: cloudgreen-kafka
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: supply-chain
+spec:
+  partitions: 2
+  replicas: 1
+  config:
+    retention.ms: "2592000000"         # 30 days
+    retention.bytes: "268435456"       # 256 MB per partition
+    cleanup.policy: delete
+    segment.bytes: "52428800"
+    compression.type: lz4
+    min.insync.replicas: "1"
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: audit-log
+  namespace: kafka-system
+  labels:
+    strimzi.io/cluster: cloudgreen-kafka
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: security
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: "-1"                 # Infinite retention (compliance)
+    cleanup.policy: delete
+    segment.bytes: "52428800"
+    compression.type: lz4
+    min.insync.replicas: "1"

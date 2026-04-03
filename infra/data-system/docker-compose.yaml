@@ -1,0 +1,118 @@
+# ============================================================
+# CloudGreen OS — Local Development Docker Compose
+# Spins up PostgreSQL 16, Neo4j CE 5.x, and Keycloak 25
+# without requiring a k3s cluster.
+#
+# Usage:
+#   cd infra/data-system
+#   docker compose up -d
+#   docker compose logs -f
+#
+# Endpoints:
+#   PostgreSQL:  localhost:5432
+#   Neo4j HTTP:  localhost:7474  (browser UI)
+#   Neo4j Bolt:  localhost:7687  (driver protocol)
+#   Keycloak:    localhost:8180  (admin console)
+# ============================================================
+
+services:
+  # ----- PostgreSQL 16 -----
+  postgresql:
+    image: postgres:16-alpine
+    container_name: cg-postgresql
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cloudgreen_admin
+      POSTGRES_PASSWORD: cg-poly-s3cur3-2026!
+      POSTGRES_DB: cloudgreen
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgresql/init-schema.sql:/docker-entrypoint-initdb.d/01-init-schema.sql:ro
+      - ./postgresql/init-keycloak-db.sh:/docker-entrypoint-initdb.d/02-create-keycloak-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudgreen_admin -d cloudgreen"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ----- Neo4j Community Edition 5.x -----
+  neo4j:
+    image: neo4j:5-community
+    container_name: cg-neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"   # HTTP browser
+      - "7687:7687"   # Bolt driver
+    environment:
+      NEO4J_AUTH: neo4j/cg-graph-s3cur3-2026!
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 256m
+      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_db_tx__timeout: 30s
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  # ----- Keycloak 25 (dev mode) -----
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: cg-keycloak
+    restart: unless-stopped
+    command:
+      - start-dev
+      - --import-realm
+    ports:
+      - "8180:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: cg-kc-adm1n-2026!
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgresql:5432/keycloak
+      KC_DB_USERNAME: cloudgreen_admin
+      KC_DB_PASSWORD: cg-poly-s3cur3-2026!
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx384m"
+    volumes:
+      - ../keycloak/realm-export:/opt/keycloak/data/import:ro
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && timeout 5 cat <&3 | grep -q '200\\|UP'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+volumes:
+  pg_data:
+    driver: local
+  neo4j_data:
+    driver: local
+  neo4j_logs:
+    driver: local

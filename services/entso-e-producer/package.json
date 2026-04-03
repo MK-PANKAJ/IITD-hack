@@ -1,0 +1,29 @@
+{
+  "name": "@cloudgreen/entso-e-producer",
+  "version": "1.0.0",
+  "description": "ENTSO-E Transparency Platform → Kafka carbon intensity pipeline",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cron": "^3.3.1",
+    "fast-xml-parser": "^4.5.1",
+    "kafkajs": "^2.2.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0"
+  }
+}

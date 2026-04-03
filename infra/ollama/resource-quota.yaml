@@ -1,0 +1,23 @@
+# =============================================================================
+# CloudGreen OS — AI System Resource Quota
+# Isolates LLM workload memory from other namespaces.
+# Dedicated AI node expected to have at least 8 GB RAM.
+#
+# Apply: kubectl apply -f infra/ollama/resource-quota.yaml
+# =============================================================================
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ai-quota
+  namespace: ai-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 5Gi
+    limits.cpu: "6"
+    limits.memory: 7Gi
+    pods: "5"
+    persistentvolumeclaims: "3"

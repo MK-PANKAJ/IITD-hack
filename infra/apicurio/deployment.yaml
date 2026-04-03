@@ -1,0 +1,124 @@
+# Apicurio Registry — Deployment
+# Runs the Apicurio Registry 3.x as a single lightweight pod
+# Uses in-memory storage by default (suitable for dev/staging)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apicurio-registry
+  namespace: registry-system
+  labels:
+    app: apicurio-registry
+    app.kubernetes.io/name: apicurio-registry
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: schema-registry
+    app.kubernetes.io/version: "3.0.4"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apicurio-registry
+  strategy:
+    type: Recreate  # In-memory storage can't do rolling updates
+  template:
+    metadata:
+      labels:
+        app: apicurio-registry
+        app.kubernetes.io/name: apicurio-registry
+        app.kubernetes.io/part-of: cloudgreen-os
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/q/metrics"
+    spec:
+      # Security hardening
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containers:
+        - name: apicurio-registry
+          image: quay.io/apicurio/apicurio-registry:3.0.4
+          imagePullPolicy: IfNotPresent
+          
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          
+          # Environment from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: apicurio-registry-config
+          
+          # Additional JVM tuning for low memory
+          env:
+            - name: JAVA_OPTS_APPEND
+              value: >-
+                -Xms128m
+                -Xmx256m
+                -XX:+UseG1GC
+                -XX:MaxGCPauseMillis=200
+                -XX:+ExitOnOutOfMemoryError
+                -Djava.net.preferIPv4Stack=true
+          
+          # Resource constraints
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          
+          # Container security
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Quarkus needs /tmp writes
+            capabilities:
+              drop:
+                - ALL
+          
+          # Health probes
+          startupProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 30  # 15s + 30*5s = 165s max startup time
+          
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+          
+          # Volume mounts
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+      
+      # Termination grace period
+      terminationGracePeriodSeconds: 30

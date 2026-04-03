@@ -1,0 +1,45 @@
+# CloudGreen OS — PostgreSQL Configuration
+# Tuned for 8 GB RAM k3s nodes with co-tenanted Kafka + Neo4j.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-config
+  namespace: data-system
+  labels:
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/part-of: cloudgreen-os
+data:
+  postgresql.conf: |
+    # === Memory (tuned for 512 MB container limit) ===
+    shared_buffers = 128MB
+    work_mem = 4MB
+    maintenance_work_mem = 64MB
+    effective_cache_size = 256MB
+
+    # === WAL ===
+    wal_buffers = 4MB
+    checkpoint_completion_target = 0.9
+    max_wal_size = 256MB
+    min_wal_size = 64MB
+
+    # === Connections ===
+    max_connections = 50
+    
+    # === Logging ===
+    log_min_duration_statement = 500
+    log_checkpoints = on
+    log_connections = on
+    log_disconnections = on
+    log_lock_waits = on
+    
+    # === Performance ===
+    random_page_cost = 1.1
+    effective_io_concurrency = 200
+    
+    # === Locale ===
+    lc_messages = 'en_US.utf8'
+    lc_monetary = 'en_US.utf8'
+    lc_numeric = 'en_US.utf8'
+    lc_time = 'en_US.utf8'
+    default_text_search_config = 'pg_catalog.english'

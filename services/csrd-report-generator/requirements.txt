@@ -1,0 +1,26 @@
+# =============================================================================
+# CloudGreen OS — CSRD Report Generator
+# Python dependencies for WeasyPrint-based PDF compliance reporting
+#
+# Install:
+#   cd services/csrd-report-generator
+#   python -m venv .venv
+#   .venv\Scripts\activate        (Windows)
+#   source .venv/bin/activate     (Linux/macOS)
+#   pip install -r requirements.txt
+# =============================================================================
+
+# PDF generation
+weasyprint>=62.3,<63
+# HTML templating
+Jinja2>=3.1.4,<4
+# PostgreSQL driver
+psycopg2-binary>=2.9.10,<3
+# Environment config
+python-dotenv>=1.0.1,<2
+# Data validation
+pydantic>=2.10,<3
+# CLI interface
+click>=8.1.7,<9
+# Date handling
+python-dateutil>=2.9,<3

@@ -1,0 +1,86 @@
+# Strimzi Kafka Operator — Helm Values
+# Chart: strimzi/strimzi-kafka-operator
+# Optimized for low-resource (8 GB RAM) k3s nodes
+# Docs: https://strimzi.io/docs/operators/latest/overview
+#
+# Install:
+#   helm install strimzi-operator strimzi/strimzi-kafka-operator \
+#     --namespace kafka-system \
+#     --values infra/helm-values/strimzi-operator-values.yaml
+
+# ---------------------------------------------------------------------------
+# Operator Pod Resources
+# The operator itself is lightweight — it only watches CRDs and reconciles.
+# ---------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi
+
+# ---------------------------------------------------------------------------
+# Feature Gates — Enable KRaft (no ZooKeeper)
+# As of Strimzi 0.43+, KRaft is GA. These gates ensure it stays enabled.
+# ---------------------------------------------------------------------------
+featureGates: "+UseKRaft,+KafkaNodePools"
+
+# ---------------------------------------------------------------------------
+# Operator Configuration
+# ---------------------------------------------------------------------------
+# Only watch our dedicated namespace (reduces RBAC blast radius)
+watchNamespaces:
+  - kafka-system
+
+# Log level for the operator (INFO for prod, DEBUG for troubleshooting)
+logLevel: INFO
+
+# Number of operator replicas (1 is fine for non-HA dev/staging)
+replicas: 1
+
+# Image pull policy
+image:
+  pullPolicy: IfNotPresent
+
+# ---------------------------------------------------------------------------
+# Dashboard / Metrics
+# Expose operator metrics for Prometheus scraping
+# ---------------------------------------------------------------------------
+dashboardNamespace: kafka-system
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false  # Set to true if you have Prometheus Operator installed
+
+# ---------------------------------------------------------------------------
+# Security Context (hardened defaults)
+# ---------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# ---------------------------------------------------------------------------
+# Tolerations & Affinity (optional — uncomment for dedicated infra nodes)
+# ---------------------------------------------------------------------------
+# tolerations:
+#   - key: "node-role.kubernetes.io/infra"
+#     operator: "Exists"
+#     effect: "NoSchedule"
+#
+# affinity:
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#         - matchExpressions:
+#             - key: node-role.kubernetes.io/infra
+#               operator: Exists

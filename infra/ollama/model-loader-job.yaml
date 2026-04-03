@@ -1,0 +1,91 @@
+# =============================================================================
+# CloudGreen OS — Llama 3.1 8B Model Loader Job
+# One-shot Job that pulls the Llama 3.1 model into the Ollama instance.
+# Run this AFTER the Ollama Deployment is healthy.
+#
+# Apply: kubectl apply -f infra/ollama/model-loader-job.yaml
+# Monitor: kubectl -n ai-system logs -f job/ollama-model-loader
+# =============================================================================
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ollama-model-loader
+  namespace: ai-system
+  labels:
+    app: ollama-model-loader
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: ai-inference
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 3600    # 1 hour max (model download on slow networks)
+  ttlSecondsAfterFinished: 86400 # Clean up after 24 hours
+  template:
+    metadata:
+      labels:
+        app: ollama-model-loader
+        app.kubernetes.io/part-of: cloudgreen-os
+    spec:
+      # Run on same node as Ollama to access the service quickly
+      nodeSelector:
+        cloudgreen.io/role: ai-inference
+      tolerations:
+        - key: "cloudgreen.io/role"
+          operator: "Equal"
+          value: "ai-inference"
+          effect: "NoSchedule"
+
+      containers:
+        - name: loader
+          image: curlimages/curl:8.5.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "╔══════════════════════════════════════════════╗"
+              echo "║  CloudGreen OS — Model Loader                ║"
+              echo "║  Pulling llama3.1:8b into Ollama              ║"
+              echo "╚══════════════════════════════════════════════╝"
+
+              OLLAMA_URL="http://ollama.ai-system.svc.cluster.local:11434"
+
+              echo "[1/3] Waiting for Ollama to be ready..."
+              for i in $(seq 1 60); do
+                if curl -sf "${OLLAMA_URL}/api/tags" > /dev/null 2>&1; then
+                  echo "       Ollama is ready!"
+                  break
+                fi
+                echo "       Attempt $i/60 — waiting 10s..."
+                sleep 10
+              done
+
+              # Verify Ollama is actually responding
+              if ! curl -sf "${OLLAMA_URL}/api/tags" > /dev/null 2>&1; then
+                echo "[ERROR] Ollama not reachable after 10 minutes. Aborting."
+                exit 1
+              fi
+
+              echo "[2/3] Pulling llama3.1:8b (this may take 10-30 minutes)..."
+              curl -sf "${OLLAMA_URL}/api/pull" \
+                -d '{"name":"llama3.1:8b","stream":false}' \
+                --max-time 3000
+
+              echo "[3/3] Verifying model is available..."
+              curl -sf "${OLLAMA_URL}/api/tags" | grep -q "llama3.1"
+              if [ $? -eq 0 ]; then
+                echo "✓ llama3.1:8b successfully loaded!"
+              else
+                echo "✗ Model verification failed"
+                exit 1
+              fi
+
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+
+      restartPolicy: OnFailure

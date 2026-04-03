@@ -1,0 +1,215 @@
+# CloudGreen OS — Kafka Cluster (KRaft Mode, Low-Memory)
+# Strimzi Custom Resource: Kafka + KafkaNodePool
+# No ZooKeeper — uses KRaft consensus (combined broker+controller role)
+#
+# Apply: kubectl apply -f infra/kafka/kafka-kraft-cluster.yaml
+# Verify: kubectl -n kafka-system wait kafka/cloudgreen-kafka --for=condition=Ready --timeout=300s
+---
+# ============================================================================
+# KafkaNodePool — Defines the broker/controller node pool
+# Combined role = single process acts as both broker AND controller
+# This is the most memory-efficient topology for small clusters.
+# ============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: combined
+  namespace: kafka-system
+  labels:
+    strimzi.io/cluster: cloudgreen-kafka
+spec:
+  replicas: 1  # Single node for dev/staging; set to 3 for production HA
+  
+  # Combined role: broker + controller in one process (lowest footprint)
+  roles:
+    - broker
+    - controller
+  
+  storage:
+    type: persistent-claim
+    size: 10Gi
+    class: local-path  # k3s default StorageClass
+    deleteClaim: false  # Retain data on cluster deletion
+  
+  # -------------------------------------------------------------------------
+  # JVM Tuning — Critical for 8 GB nodes
+  # Rule of thumb: Heap ≤ 50% of container memory limit
+  # Remaining memory → OS page cache (essential for Kafka throughput)
+  # -------------------------------------------------------------------------
+  jvmOptions:
+    -Xms: "512m"    # Initial heap
+    -Xmx: "512m"    # Max heap (512 MB — leaves 512 MB for page cache)
+    # G1GC is the default and works well for low-heap scenarios
+    gcLoggingEnabled: true
+    javaSystemProperties:
+      - name: com.sun.management.jmxremote.port
+        value: "9999"
+  
+  # -------------------------------------------------------------------------
+  # Container Resources
+  # -------------------------------------------------------------------------
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "1536Mi"  # 1.5 GB total (512 MB heap + 1 GB page cache + overhead)
+
+---
+# ============================================================================
+# Kafka Cluster — Top-level KRaft configuration
+# ============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: cloudgreen-kafka
+  namespace: kafka-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: messaging
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    version: 3.8.0
+    
+    # -------------------------------------------------------------------
+    # Listeners
+    # -------------------------------------------------------------------
+    listeners:
+      # Internal plaintext (cluster-internal only)
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      
+      # Internal TLS (for cross-namespace secure communication)
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: tls
+    
+    # -------------------------------------------------------------------
+    # Kafka Broker Configuration — Tuned for Low Memory
+    # -------------------------------------------------------------------
+    config:
+      # === Replication (single-node safe defaults) ===
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+      
+      # === KRaft Metadata ===
+      # Number of metadata log partitions (1 for single-node)
+      # Reduces memory overhead from controller metadata
+      
+      # === Log Management (aggressive cleanup for low disk) ===
+      log.retention.hours: 168          # 7 days retention
+      log.retention.bytes: 1073741824   # 1 GB max per partition
+      log.segment.bytes: 104857600      # 100 MB segments (smaller = faster cleanup)
+      log.cleanup.policy: delete
+      log.retention.check.interval.ms: 300000  # Check every 5 minutes
+      
+      # === Performance Tuning for Low Memory ===
+      num.io.threads: 4                 # Reduced from default 8
+      num.network.threads: 2            # Reduced from default 3
+      num.partitions: 3                 # Default partitions per topic
+      socket.send.buffer.bytes: 102400  # 100 KB (reduced)
+      socket.receive.buffer.bytes: 102400
+      socket.request.max.bytes: 52428800  # 50 MB max request size
+      
+      # === Batch / Buffer Tuning ===
+      replica.fetch.max.bytes: 1048576  # 1 MB (reduced from default 10 MB)
+      message.max.bytes: 1048576        # 1 MB max message
+      
+      # === Compression ===
+      compression.type: lz4             # Best CPU/ratio tradeoff
+      
+      # === Auto-create topics: DISABLED for governance ===
+      auto.create.topics.enable: false
+    
+    # -------------------------------------------------------------------
+    # Metrics — JMX exporter for Prometheus
+    # -------------------------------------------------------------------
+    metricsConfig:
+      type: jmxPrometheusExporter
+      valueFrom:
+        configMapKeyRef:
+          name: kafka-metrics-config
+          key: kafka-metrics-config.yml
+
+  # =====================================================================
+  # Entity Operator (Topic + User operators)
+  # Manages KafkaTopic and KafkaUser CRDs
+  # =====================================================================
+  entityOperator:
+    topicOperator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+    userOperator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+
+---
+# ============================================================================
+# Kafka Metrics ConfigMap (for JMX Prometheus exporter)
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-metrics-config
+  namespace: kafka-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+data:
+  kafka-metrics-config.yml: |
+    lowercaseOutputName: true
+    lowercaseOutputLabelNames: true
+    rules:
+      # Broker metrics
+      - pattern: "kafka.server<type=(.+), name=(.+), clientId=(.+), topic=(.+), partition=(.*)>Value"
+        name: "kafka_server_$1_$2"
+        type: GAUGE
+        labels:
+          clientId: "$3"
+          topic: "$4"
+          partition: "$5"
+      # Request metrics
+      - pattern: "kafka.server<type=(.+), name=(.+)>Value"
+        name: "kafka_server_$1_$2"
+        type: GAUGE
+      # Controller metrics (KRaft)
+      - pattern: "kafka.controller<type=(.+), name=(.+)>Value"
+        name: "kafka_controller_$1_$2"
+        type: GAUGE
+      # Log metrics
+      - pattern: "kafka.log<type=(.+), name=(.+), topic=(.+), partition=(.+)>Value"
+        name: "kafka_log_$1_$2"
+        type: GAUGE
+        labels:
+          topic: "$3"
+          partition: "$4"
+      # JVM metrics
+      - pattern: "java.lang<type=Memory><>HeapMemoryUsage"
+        name: "jvm_heap_memory_usage"
+        type: GAUGE
+      - pattern: "java.lang<type=GarbageCollector, name=(.+)><>CollectionCount"
+        name: "jvm_gc_collection_count"
+        type: COUNTER
+        labels:
+          gc: "$1"

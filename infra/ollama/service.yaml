@@ -1,0 +1,32 @@
+# =============================================================================
+# CloudGreen OS — Ollama ClusterIP Service
+# Internal API endpoint for LLM inference.
+#
+# DNS: ollama.ai-system.svc.cluster.local:11434
+#
+# Usage from other pods:
+#   curl http://ollama.ai-system.svc.cluster.local:11434/api/generate \
+#     -d '{"model":"llama3.1:8b","prompt":"Hello","stream":false}'
+#
+# Apply: kubectl apply -f infra/ollama/service.yaml
+# =============================================================================
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: ai-system
+  labels:
+    app: ollama
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: ai-inference
+spec:
+  type: ClusterIP
+  selector:
+    app: ollama
+  ports:
+    - name: http
+      port: 11434
+      targetPort: http
+      protocol: TCP

@@ -1,0 +1,49 @@
+# Apicurio Registry — ConfigMap
+# Configuration for in-memory storage mode (swap to sql for production)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apicurio-registry-config
+  namespace: registry-system
+  labels:
+    app: apicurio-registry
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: schema-registry
+data:
+  # Storage backend: mem (in-memory) | sql (PostgreSQL) | kafkasql (Kafka)
+  REGISTRY_STORAGE_KIND: "mem"
+  
+  # Logging
+  LOG_LEVEL: "INFO"
+  QUARKUS_LOG_LEVEL: "INFO"
+  QUARKUS_LOG_CONSOLE_ENABLE: "true"
+  
+  # HTTP configuration
+  QUARKUS_HTTP_PORT: "8080"
+  QUARKUS_HTTP_HOST: "0.0.0.0"
+  
+  # CORS (allow CloudGreen frontend)
+  QUARKUS_HTTP_CORS: "true"
+  QUARKUS_HTTP_CORS_ORIGINS: "*"
+  
+  # Health checks
+  QUARKUS_HEALTH_ENABLED: "true"
+  
+  # Metrics (Prometheus compatible)
+  QUARKUS_MICROMETER_ENABLED: "true"
+  QUARKUS_MICROMETER_EXPORT_PROMETHEUS_ENABLED: "true"
+  
+  # === Kafka Integration (for kafkasql storage — currently unused) ===
+  # Uncomment these when switching to kafkasql storage:
+  # KAFKA_BOOTSTRAP_SERVERS: "cloudgreen-kafka-kafka-bootstrap.kafka-system.svc.cluster.local:9092"
+  # REGISTRY_KAFKASQL_TOPIC_AUTO_CREATE: "true"
+  
+  # === Content Validation ===
+  # Enable schema validation on create/update
+  REGISTRY_REST_ARTIFACT_CONTENTTYPE_VALIDATION_ENABLED: "true"
+  
+  # === API Security (disabled for dev — enable in production) ===
+  # AUTH_ENABLED: "true"
+  # QUARKUS_OIDC_AUTH_SERVER_URL: "https://keycloak.cloudgreen.local/realms/cloudgreen"
+  # QUARKUS_OIDC_CLIENT_ID: "apicurio-registry"

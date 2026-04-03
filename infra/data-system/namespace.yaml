@@ -1,0 +1,14 @@
+# CloudGreen OS — Data System Namespace
+# Houses PostgreSQL and Neo4j CE for polyglot persistence.
+# Apply: kubectl apply -f infra/data-system/namespace.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/managed-by: kubectl
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

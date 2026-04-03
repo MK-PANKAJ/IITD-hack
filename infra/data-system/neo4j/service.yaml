@@ -1,0 +1,24 @@
+# CloudGreen OS — Neo4j CE Service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j
+  namespace: data-system
+  labels:
+    app.kubernetes.io/name: neo4j
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: graph-database
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 7474
+      targetPort: 7474
+      protocol: TCP
+    - name: bolt
+      port: 7687
+      targetPort: 7687
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: neo4j

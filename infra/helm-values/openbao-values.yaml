@@ -1,0 +1,172 @@
+# OpenBao — Helm Values
+# Chart: openbao/openbao
+# Standalone mode with file backend — optimized for low-resource k3s
+# Docs: https://openbao.org/docs/platform/k8s/helm
+#
+# Install:
+#   helm install openbao openbao/openbao \
+#     --namespace vault-system \
+#     --values infra/helm-values/openbao-values.yaml
+
+# ---------------------------------------------------------------------------
+# Global Settings
+# ---------------------------------------------------------------------------
+global:
+  enabled: true
+  tlsDisable: false  # We use TLS even in dev — set to true only for debugging
+
+# ---------------------------------------------------------------------------
+# Server Configuration
+# ---------------------------------------------------------------------------
+server:
+  enabled: true
+  
+  # Image
+  image:
+    repository: quay.io/openbao/openbao
+    tag: "2.2.0"
+    pullPolicy: IfNotPresent
+  
+  # Standalone mode (no HA — suitable for dev/staging with 8 GB nodes)
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+      
+      listener "tcp" {
+        address         = "[::]:8200"
+        cluster_address = "[::]:8201"
+        tls_disable     = 1
+      }
+      
+      storage "file" {
+        path = "/openbao/data"
+      }
+      
+      # Telemetry for Prometheus
+      telemetry {
+        prometheus_retention_time = "30s"
+        disable_hostname          = true
+      }
+      
+      # Security hardening
+      default_lease_ttl = "768h"
+      max_lease_ttl     = "8760h"
+      
+      # Disable mlock for containers (uses seccomp instead)
+      disable_mlock = true
+  
+  # HA mode — disabled for low-resource environments
+  ha:
+    enabled: false
+  
+  # Resources — OpenBao is a Go binary, very lightweight
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  
+  # Persistent Volume for file storage backend
+  dataStorage:
+    enabled: true
+    size: 5Gi
+    storageClass: local-path  # k3s default StorageClass
+    accessMode: ReadWriteOnce
+  
+  # Audit storage (separate PVC for audit logs)
+  auditStorage:
+    enabled: true
+    size: 2Gi
+    storageClass: local-path
+    accessMode: ReadWriteOnce
+  
+  # Readiness/Liveness probes
+  readinessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true"
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  
+  livenessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true"
+    initialDelaySeconds: 30
+    periodSeconds: 15
+  
+  # Security context
+  securityContext:
+    pod:
+      runAsNonRoot: true
+      runAsUser: 100
+      runAsGroup: 1000
+      fsGroup: 1000
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+        add:
+          - IPC_LOCK  # Required for mlock (if enabled)
+  
+  # Service configuration
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8200
+  
+  # Ingress — disabled by default (use kubectl port-forward for dev)
+  ingress:
+    enabled: false
+    # Uncomment for production with cert-manager:
+    # ingressClassName: traefik
+    # hosts:
+    #   - host: vault.cloudgreen.local
+    #     paths:
+    #       - /
+    # tls:
+    #   - secretName: vault-tls
+    #     hosts:
+    #       - vault.cloudgreen.local
+
+# ---------------------------------------------------------------------------
+# Injector Configuration (sidecar injector for secret injection into pods)
+# ---------------------------------------------------------------------------
+injector:
+  enabled: true
+  
+  replicas: 1
+  
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  
+  securityContext:
+    pod:
+      runAsNonRoot: true
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+
+# ---------------------------------------------------------------------------
+# CSI Provider (alternative to injector — disabled to save resources)
+# ---------------------------------------------------------------------------
+csi:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# UI — enabled for admin access
+# ---------------------------------------------------------------------------
+ui:
+  enabled: true
+  serviceType: ClusterIP

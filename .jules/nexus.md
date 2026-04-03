@@ -1,4 +1,0 @@
-## 2024-05-18 - [Domain: 🛡️] Fix LLM Prompt Injection
-**Discovery/Vulnerability:** Found a prompt injection vulnerability in `server/index.js` where user-provided code was directly concatenated into the main prompt for the Ollama model without sanitization.
-**Learning:** Mixing system instructions and user input in unified prompts exposes the LLM to prompt injection, where user commands can override the system instructions.
-**Action/Prevention:** Isolate user input from instructions by utilizing separate `system` and `prompt` parameters when interacting with the Ollama `/api/generate` endpoint, treating the `system` parameter as trusted instructions and the `prompt` parameter as purely untrusted data.

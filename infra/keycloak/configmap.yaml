@@ -1,0 +1,160 @@
+# CloudGreen OS — Keycloak Realm Configuration
+# Auto-imported on first boot via KC_IMPORT env flag.
+# Defines the 'cloudgreen' realm with roles and a public OIDC client.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-import
+  namespace: auth-system
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: cloudgreen-os
+data:
+  cloudgreen-realm.json: |
+    {
+      "realm": "cloudgreen",
+      "enabled": true,
+      "registrationAllowed": true,
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "resetPasswordAllowed": true,
+      "editUsernameAllowed": false,
+      "bruteForceProtected": true,
+      "sslRequired": "external",
+      "defaultSignatureAlgorithm": "RS256",
+      "accessTokenLifespan": 43200,
+      "ssoSessionIdleTimeout": 86400,
+      "roles": {
+        "realm": [
+          {
+            "name": "admin",
+            "description": "Full system administrator with access to all CloudGreen OS features"
+          },
+          {
+            "name": "supplier",
+            "description": "Supplier portal access — can upload emissions data and view own profile"
+          },
+          {
+            "name": "analyst",
+            "description": "Read-only analytics access — dashboards, reports, and carbon signal queries"
+          }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "cloudgreen-api",
+          "name": "CloudGreen OS API",
+          "enabled": true,
+          "publicClient": false,
+          "secret": "cloudgreen-api-secret-change-me",
+          "directAccessGrantsEnabled": true,
+          "serviceAccountsEnabled": true,
+          "authorizationServicesEnabled": false,
+          "protocol": "openid-connect",
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "redirectUris": [
+            "http://localhost:5173/*",
+            "http://localhost:8787/*"
+          ],
+          "webOrigins": [
+            "http://localhost:5173",
+            "http://localhost:8787"
+          ],
+          "defaultClientScopes": [
+            "openid",
+            "profile",
+            "email",
+            "roles"
+          ],
+          "protocolMappers": [
+            {
+              "name": "realm-roles",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-realm-role-mapper",
+              "config": {
+                "claim.name": "realm_roles",
+                "jsonType.label": "String",
+                "multivalued": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
+        },
+        {
+          "clientId": "cloudgreen-frontend",
+          "name": "CloudGreen OS Frontend (SPA)",
+          "enabled": true,
+          "publicClient": true,
+          "directAccessGrantsEnabled": false,
+          "protocol": "openid-connect",
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "redirectUris": [
+            "http://localhost:5173/*"
+          ],
+          "webOrigins": [
+            "http://localhost:5173"
+          ],
+          "defaultClientScopes": [
+            "openid",
+            "profile",
+            "email",
+            "roles"
+          ]
+        }
+      ],
+      "users": [
+        {
+          "username": "admin@cloudgreen.test",
+          "email": "admin@cloudgreen.test",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "CloudGreen",
+          "lastName": "Admin",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "admin123",
+              "temporary": true
+            }
+          ],
+          "realmRoles": ["admin"]
+        },
+        {
+          "username": "supplier@acme.test",
+          "email": "supplier@acme.test",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "Acme",
+          "lastName": "Supplier",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "supplier123",
+              "temporary": true
+            }
+          ],
+          "realmRoles": ["supplier"]
+        },
+        {
+          "username": "analyst@cloudgreen.test",
+          "email": "analyst@cloudgreen.test",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "Green",
+          "lastName": "Analyst",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "analyst123",
+              "temporary": true
+            }
+          ],
+          "realmRoles": ["analyst"]
+        }
+      ]
+    }

@@ -1,0 +1,42 @@
+# CloudGreen OS — Neo4j CE Configuration
+# Memory-constrained settings for 8 GB k3s nodes.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neo4j-config
+  namespace: data-system
+  labels:
+    app.kubernetes.io/name: neo4j
+    app.kubernetes.io/part-of: cloudgreen-os
+data:
+  neo4j.conf: |
+    # === Server ===
+    server.default_listen_address=0.0.0.0
+    server.bolt.listen_address=0.0.0.0:7687
+    server.http.listen_address=0.0.0.0:7474
+    
+    # Disable HTTPS in dev (enable via cert-manager in prod)
+    server.https.enabled=false
+
+    # === Memory (tuned for 768 MB container limit) ===
+    server.memory.heap.initial_size=256m
+    server.memory.heap.max_size=256m
+    server.memory.pagecache.size=256m
+    server.memory.off_heap.max_size=128m
+
+    # === Transaction ===
+    db.tx_timeout=30s
+    db.memory.transaction.total.max=128m
+
+    # === Logging ===
+    db.logs.query.enabled=INFO
+    db.logs.query.threshold=500ms
+
+    # === Security ===
+    dbms.security.auth_enabled=true
+    dbms.security.procedures.unrestricted=apoc.*
+
+    # === Community Edition Limits ===
+    # CE supports 1 database (neo4j) + system db only
+    initial.dbms.default_database=neo4j

@@ -1,0 +1,12 @@
+# CloudGreen OS — Keycloak Namespace
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/managed-by: kubectl
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

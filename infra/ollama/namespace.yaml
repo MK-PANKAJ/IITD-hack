@@ -1,0 +1,20 @@
+# =============================================================================
+# CloudGreen OS — AI System Namespace
+# Dedicated namespace for LLM inference workloads (Ollama + models).
+# Isolated from data/messaging layers to prevent OOM interference.
+#
+# Apply: kubectl apply -f infra/ollama/namespace.yaml
+# =============================================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/managed-by: kubectl
+    purpose: llm-inference
+    # PSA: baseline (Ollama needs some runtime capabilities)
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

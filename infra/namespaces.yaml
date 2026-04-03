@@ -1,0 +1,70 @@
+# CloudGreen OS — Kubernetes Namespaces
+# Apply: kubectl apply -f infra/namespaces.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/managed-by: helm
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: registry-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Polyglot storage: PostgreSQL 16 + Neo4j CE 5.x
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/managed-by: kubectl
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Identity & Access: Keycloak 25
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/managed-by: kubectl
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# AI / LLM Inference: Ollama + Llama 3.1
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/managed-by: kubectl
+    purpose: llm-inference
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

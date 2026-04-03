@@ -1,0 +1,129 @@
+# =============================================================================
+# CloudGreen OS — Ollama Deployment (CPU Mode)
+# Runs the Ollama inference server on a dedicated AI node.
+# Serves Llama 3.1 8B via the internal API at port 11434.
+#
+# GPU Upgrade: Uncomment the nvidia.com/gpu resource and tolerations blocks
+# when NVIDIA GPU nodes are available.
+#
+# Apply: kubectl apply -f infra/ollama/deployment.yaml
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ai-system
+  labels:
+    app: ollama
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: ai-inference
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate    # Model files are large; avoid double-mounting the PVC
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+        app.kubernetes.io/name: ollama
+        app.kubernetes.io/part-of: cloudgreen-os
+        app.kubernetes.io/component: ai-inference
+    spec:
+      # ── Node Isolation ──────────────────────────────────────────────────
+      # Schedule ONLY on the dedicated AI node.
+      # Label your AI node:
+      #   kubectl label node <your-ai-node> cloudgreen.io/role=ai-inference
+      #   kubectl taint node <your-ai-node> cloudgreen.io/role=ai-inference:NoSchedule
+      nodeSelector:
+        cloudgreen.io/role: ai-inference
+
+      tolerations:
+        - key: "cloudgreen.io/role"
+          operator: "Equal"
+          value: "ai-inference"
+          effect: "NoSchedule"
+
+      # ── GPU Tolerations (uncomment when NVIDIA GPU nodes available) ───
+      # tolerations:
+      #   - key: "nvidia.com/gpu"
+      #     operator: "Exists"
+      #     effect: "NoSchedule"
+
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 11434
+              protocol: TCP
+
+          env:
+            # Ollama configuration
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+            - name: OLLAMA_MODELS
+              value: "/root/.ollama/models"
+            # Keep models in memory for faster subsequent requests
+            - name: OLLAMA_KEEP_ALIVE
+              value: "24h"
+            # Limit concurrent requests to protect memory on CPU-only mode
+            - name: OLLAMA_NUM_PARALLEL
+              value: "1"
+            # CPU thread count — adjust based on node CPU count
+            - name: OLLAMA_NUM_THREAD
+              value: "4"
+
+          resources:
+            requests:
+              cpu: "1"
+              memory: "5Gi"
+            limits:
+              cpu: "4"
+              memory: "6Gi"
+              # ── GPU Resources (uncomment for NVIDIA GPU) ──────────────
+              # nvidia.com/gpu: "1"
+
+          # Ollama exposes a health endpoint
+          startupProbe:
+            httpGet:
+              path: /api/tags
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30    # Models take time to load on CPU
+            timeoutSeconds: 5
+
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          volumeMounts:
+            - name: ollama-models
+              mountPath: /root/.ollama
+
+      volumes:
+        - name: ollama-models
+          persistentVolumeClaim:
+            claimName: ollama-models
+
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60

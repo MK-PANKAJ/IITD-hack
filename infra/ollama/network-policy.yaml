@@ -1,0 +1,64 @@
+# =============================================================================
+# CloudGreen OS — AI System Network Policies
+# Zero-trust: deny all ingress by default, then whitelist required flows.
+#
+# Apply: kubectl apply -f infra/ollama/network-policy.yaml
+# =============================================================================
+---
+# Default deny all ingress in ai-system namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: ai-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Allow Ollama access from CloudGreen app workloads
+# This enables the GreenOps Advisor (server/index.js) and ENTSO-E producer
+# to query the Llama 3.1 model via the internal API.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ollama-access
+  namespace: ai-system
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama
+  policyTypes:
+    - Ingress
+  ingress:
+    # From any namespace with the cloudgreen-os label
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: cloudgreen-os
+      ports:
+        - port: 11434
+          protocol: TCP
+
+---
+# Allow the model loader Job to reach Ollama
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-model-loader
+  namespace: ai-system
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ollama-model-loader
+      ports:
+        - port: 11434
+          protocol: TCP

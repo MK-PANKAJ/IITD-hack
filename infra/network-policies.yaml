@@ -1,0 +1,264 @@
+# CloudGreen OS — Network Policies
+# Zero-trust: deny all ingress by default, then whitelist required flows.
+# Apply: kubectl apply -f infra/network-policies.yaml
+---
+# === Kafka Namespace ===
+# Default deny all ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: kafka-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Allow Kafka broker traffic within the namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kafka-internal
+  namespace: kafka-system
+spec:
+  podSelector:
+    matchLabels:
+      strimzi.io/cluster: cloudgreen-kafka
+  policyTypes:
+    - Ingress
+  ingress:
+    # Inter-broker replication + controller quorum
+    - from:
+        - podSelector:
+            matchLabels:
+              strimzi.io/cluster: cloudgreen-kafka
+      ports:
+        - port: 9091
+          protocol: TCP
+        - port: 9090
+          protocol: TCP
+    # Client connections from other namespaces
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: cloudgreen-os
+      ports:
+        - port: 9092
+          protocol: TCP
+
+---
+# Allow Strimzi operator to manage Kafka pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-strimzi-operator
+  namespace: kafka-system
+spec:
+  podSelector:
+    matchLabels:
+      strimzi.io/cluster: cloudgreen-kafka
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              strimzi.io/kind: cluster-operator
+
+---
+# === Registry Namespace ===
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: registry-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Allow traffic to Apicurio from Kafka namespace and app workloads
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-registry-access
+  namespace: registry-system
+spec:
+  podSelector:
+    matchLabels:
+      app: apicurio-registry
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: cloudgreen-os
+      ports:
+        - port: 8080
+          protocol: TCP
+
+---
+# === Vault Namespace ===
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: vault-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Allow vault access from all CloudGreen namespaces (for secret injection)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vault-access
+  namespace: vault-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: cloudgreen-os
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201
+          protocol: TCP
+
+---
+# === Data System Namespace (PostgreSQL + Neo4j) ===
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: data-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Allow PostgreSQL access from CloudGreen app namespaces + auth-system (Keycloak)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgresql-access
+  namespace: data-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  policyTypes:
+    - Ingress
+  ingress:
+    # From app workloads in any cloudgreen namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: cloudgreen-os
+      ports:
+        - port: 5432
+          protocol: TCP
+
+---
+# Allow Neo4j access from CloudGreen app namespaces
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-neo4j-access
+  namespace: data-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: neo4j
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: cloudgreen-os
+      ports:
+        - port: 7474
+          protocol: TCP
+        - port: 7687
+          protocol: TCP
+
+---
+# === Auth System Namespace (Keycloak) ===
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: auth-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Allow Keycloak access from CloudGreen app namespaces
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-keycloak-access
+  namespace: auth-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: cloudgreen-os
+      ports:
+        - port: 8080
+          protocol: TCP
+
+---
+# === AI System Namespace (Ollama) ===
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: ai-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Allow Ollama access from all CloudGreen namespaces (GreenOps Advisor, etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ollama-access
+  namespace: ai-system
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: cloudgreen-os
+      ports:
+        - port: 11434
+          protocol: TCP

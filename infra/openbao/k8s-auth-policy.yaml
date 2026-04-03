@@ -1,0 +1,51 @@
+# OpenBao — Kubernetes Auth Backend + Policy
+# Enables pods in CloudGreen namespaces to authenticate and read secrets.
+#
+# Apply: kubectl apply -f infra/openbao/k8s-auth-policy.yaml
+# Then run: infra/scripts/03-openbao-setup.sh inside the OpenBao pod
+---
+# ServiceAccount for OpenBao to validate Kubernetes tokens
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-auth
+  namespace: vault-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+    app.kubernetes.io/component: secrets-management
+
+---
+# ClusterRoleBinding — allows OpenBao to call the TokenReview API
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openbao-tokenreview-binding
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: openbao-auth
+    namespace: vault-system
+
+---
+# ServiceAccount for CloudGreen application pods to authenticate with OpenBao
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudgreen-app
+  namespace: kafka-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudgreen-app
+  namespace: registry-system
+  labels:
+    app.kubernetes.io/part-of: cloudgreen-os

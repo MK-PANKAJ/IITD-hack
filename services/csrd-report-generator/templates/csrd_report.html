@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>CSRD Sustainability Report — {{ data.organization }} {{ data.reporting_year }}</title>
+  <style>
+    /* ── WeasyPrint PDF Stylesheet ─────────────────────────────────────── */
+    @page {
+      size: A4;
+      margin: 2cm 2.5cm;
+      @bottom-center {
+        content: "{{ data.organization }} — CSRD Report {{ data.reporting_year }} | Page " counter(page) " of " counter(pages);
+        font-size: 8pt;
+        color: #6b7280;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+      }
+    }
+
+    @page :first {
+      margin-top: 0;
+      @bottom-center { content: none; }
+    }
+
+    :root {
+      --primary: #059669;
+      --primary-dark: #047857;
+      --danger: #dc2626;
+      --warning: #f59e0b;
+      --info: #3b82f6;
+      --bg-light: #f8fafc;
+      --bg-card: #ffffff;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --border: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 10pt;
+      line-height: 1.6;
+      color: var(--text-primary);
+      background: var(--bg-light);
+    }
+
+    /* ── Cover Page ─────────────────────────────────────────────────────── */
+    .cover {
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+      background: linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%);
+      color: white;
+      margin: -2cm -2.5cm;
+      padding: 3cm;
+    }
+
+    .cover h1 {
+      font-size: 32pt;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5cm;
+    }
+
+    .cover .subtitle {
+      font-size: 16pt;
+      font-weight: 300;
+      opacity: 0.9;
+      margin-bottom: 1cm;
+    }
+
+    .cover .org-name {
+      font-size: 20pt;
+      font-weight: 600;
+      margin-top: 1cm;
+      padding: 0.5cm 1.5cm;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-radius: 8px;
+    }
+
+    .cover .meta {
+      font-size: 10pt;
+      margin-top: 2cm;
+      opacity: 0.7;
+    }
+
+    /* ── Section Headers ────────────────────────────────────────────────── */
+    h2 {
+      font-size: 16pt;
+      font-weight: 700;
+      color: var(--primary-dark);
+      border-bottom: 3px solid var(--primary);
+      padding-bottom: 6px;
+      margin: 1.5cm 0 0.5cm 0;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 12pt;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0.8cm 0 0.3cm 0;
+      page-break-after: avoid;
+    }
+
+    p { margin-bottom: 0.3cm; }
+
+    /* ── KPI Cards ──────────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 0.5cm 0;
+    }
+
+    .kpi-card {
+      flex: 1 1 30%;
+      min-width: 140px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      text-align: center;
+    }
+
+    .kpi-card .value {
+      font-size: 20pt;
+      font-weight: 800;
+      color: var(--primary-dark);
+      line-height: 1.2;
+    }
+
+    .kpi-card .label {
+      font-size: 8pt;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }
+
+    /* ── Tables ──────────────────────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.4cm 0 0.6cm 0;
+      font-size: 9pt;
+    }
+
+    thead th {
+      background: var(--primary-dark);
+      color: white;
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr:nth-child(even) { background: #f1f5f9; }
+
+    .align-right { text-align: right; }
+
+    /* ── Risk Badges ────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-low { background: #d1fae5; color: #065f46; }
+    .badge-medium { background: #fef3c7; color: #92400e; }
+    .badge-high { background: #fed7aa; color: #9a3412; }
+    .badge-critical { background: #fecaca; color: #991b1b; }
+
+    /* ── Compliance Score ────────────────────────────────────────────────── */
+    .score-section {
+      text-align: center;
+      margin: 0.6cm 0;
+      padding: 1cm;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .score-value {
+      font-size: 48pt;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .score-good { color: var(--primary); }
+    .score-warning { color: var(--warning); }
+    .score-danger { color: var(--danger); }
+
+    .score-label {
+      font-size: 11pt;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+
+    /* ── Scope Breakdown Bar ────────────────────────────────────────────── */
+    .scope-bar {
+      display: flex;
+      height: 28px;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 0.4cm 0;
+    }
+
+    .scope-bar .seg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7pt;
+      font-weight: 700;
+      color: white;
+    }
+
+    .seg-s1 { background: #059669; }
+    .seg-s2 { background: #3b82f6; }
+    .seg-s3 { background: #f59e0b; }
+
+    /* ── Notices ─────────────────────────────────────────────────────────── */
+    .notice {
+      background: #eff6ff;
+      border-left: 4px solid var(--info);
+      padding: 10px 14px;
+      margin: 0.4cm 0;
+      font-size: 9pt;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .disclaimer {
+      margin-top: 1cm;
+      padding-top: 0.5cm;
+      border-top: 1px solid var(--border);
+      font-size: 8pt;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════ COVER PAGE ═══════════════════════ -->
+  <div class="cover">
+    <h1>CSRD Sustainability Report</h1>
+    <div class="subtitle">Corporate Sustainability Reporting Directive (EU) 2022/2464</div>
+    <div class="org-name">{{ data.organization }}</div>
+    <div class="subtitle" style="margin-top: 0.8cm;">Reporting Year: {{ data.reporting_year }}</div>
+    <div class="meta">
+      Report ID: {{ data.report_id }}<br/>
+      Generated: {{ data.generated_at.strftime('%d %B %Y, %H:%M UTC') }}<br/>
+      Powered by CloudGreen OS
+    </div>
+  </div>
+
+  <!-- ═══════════════════ EXECUTIVE SUMMARY ═══════════════ -->
+  <h2>1. Executive Summary</h2>
+
+  <div class="score-section">
+    <div class="score-value {% if data.csrd_compliance_score >= 70 %}score-good{% elif data.csrd_compliance_score >= 40 %}score-warning{% else %}score-danger{% endif %}">
+      {{ data.csrd_compliance_score }}<span style="font-size: 18pt;">/100</span>
+    </div>
+    <div class="score-label">CSRD Compliance Readiness Score</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="value">{{ "{:,.1f}".format(data.scope_breakdown.total_tonnes) }}</div>
+      <div class="label">Total Emissions (tCO₂e)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">{{ data.supplier_count }}</div>
+      <div class="label">Registered Suppliers</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">{{ data.credential_count }}</div>
+      <div class="label">Verified Credentials</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">
+        <span class="badge badge-{{ data.risk_class.value }}">{{ data.risk_class.value }}</span>
+      </div>
+      <div class="label">Risk Classification</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">{{ data.open_incidents }}</div>
+      <div class="label">Open Incidents</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">{{ "{:,.1f}".format(data.year_over_year_target_kg / 1000) }}</div>
+      <div class="label">YoY Reduction Target (tCO₂e)</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ EMISSIONS BREAKDOWN ═════════════ -->
+  <h2>2. GHG Emissions Breakdown</h2>
+
+  <h3>2.1 Scope Analysis</h3>
+  <p>
+    Total greenhouse gas emissions for {{ data.reporting_year }}:
+    <strong>{{ "{:,.2f}".format(data.scope_breakdown.total_kg) }} kgCO₂e</strong>
+    ({{ "{:,.2f}".format(data.scope_breakdown.total_tonnes) }} tonnes).
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Scope</th>
+        <th>Description</th>
+        <th class="align-right">Emissions (kgCO₂e)</th>
+        <th class="align-right">Share (%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set total = data.scope_breakdown.total_kg %}
+      <tr>
+        <td><strong>Scope 1</strong></td>
+        <td>Direct emissions from owned/controlled sources</td>
+        <td class="align-right">{{ "{:,.2f}".format(data.scope_breakdown.scope1_kg) }}</td>
+        <td class="align-right">{{ "{:.1f}".format((data.scope_breakdown.scope1_kg / total * 100) if total > 0 else 0) }}%</td>
+      </tr>
+      <tr>
+        <td><strong>Scope 2</strong></td>
+        <td>Indirect emissions from purchased energy</td>
+        <td class="align-right">{{ "{:,.2f}".format(data.scope_breakdown.scope2_kg) }}</td>
+        <td class="align-right">{{ "{:.1f}".format((data.scope_breakdown.scope2_kg / total * 100) if total > 0 else 0) }}%</td>
+      </tr>
+      <tr>
+        <td><strong>Scope 3</strong></td>
+        <td>Value chain emissions (upstream & downstream)</td>
+        <td class="align-right">{{ "{:,.2f}".format(data.scope_breakdown.scope3_kg) }}</td>
+        <td class="align-right">{{ "{:.1f}".format((data.scope_breakdown.scope3_kg / total * 100) if total > 0 else 0) }}%</td>
+      </tr>
+      <tr style="font-weight: 700; background: #ecfdf5;">
+        <td colspan="2">Total</td>
+        <td class="align-right">{{ "{:,.2f}".format(total) }}</td>
+        <td class="align-right">100%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {% if total > 0 %}
+  {% set s1_pct = (data.scope_breakdown.scope1_kg / total * 100)|round(1) %}
+  {% set s2_pct = (data.scope_breakdown.scope2_kg / total * 100)|round(1) %}
+  {% set s3_pct = (100 - s1_pct - s2_pct)|round(1) %}
+  <div class="scope-bar">
+    <div class="seg seg-s1" style="width: {{ s1_pct }}%;">S1 {{ s1_pct }}%</div>
+    <div class="seg seg-s2" style="width: {{ s2_pct }}%;">S2 {{ s2_pct }}%</div>
+    <div class="seg seg-s3" style="width: {{ s3_pct }}%;">S3 {{ s3_pct }}%</div>
+  </div>
+  {% endif %}
+
+  <!-- ═══════════════════ SUPPLIER RISK ═══════════════════ -->
+  <h2>3. Supply Chain Risk Exposure</h2>
+
+  <p>
+    Top {{ data.top_emitters|length }} suppliers by total emissions.
+    Risk classification follows CSRD double-materiality thresholds.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Supplier</th>
+        <th class="align-right">Total Emissions (kgCO₂e)</th>
+        <th>Scopes</th>
+        <th>Risk Level</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in data.top_emitters %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ s.name }}</td>
+        <td class="align-right">{{ "{:,.2f}".format(s.total_emissions_kg) }}</td>
+        <td>{{ s.scope_count }}</td>
+        <td><span class="badge badge-{{ s.risk_class.value }}">{{ s.risk_class.value }}</span></td>
+      </tr>
+      {% endfor %}
+      {% if not data.top_emitters %}
+      <tr>
+        <td colspan="5" style="text-align: center; color: var(--text-secondary);">
+          No supplier emission data available for {{ data.reporting_year }}.
+        </td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════ COMPLIANCE & VERIFICATION ═══════ -->
+  <h2>4. Compliance & Verification</h2>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="value">{{ data.credential_count }}</div>
+      <div class="label">Verifiable Credentials Issued</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">{{ data.emission_record_count }}</div>
+      <div class="label">Emission Records Ingested</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">{{ data.total_incidents }} / {{ data.open_incidents }} open</div>
+      <div class="label">Incidents (Total / Open)</div>
+    </div>
+  </div>
+
+  <div class="notice">
+    <strong>ESRS E1 — Climate Change:</strong>
+    This report covers mandatory disclosures under the European Sustainability
+    Reporting Standards (ESRS), specifically E1.1 (transition plan), E1.4 (GHG emission
+    targets), and E1.6 (gross Scope 1/2/3 emissions). Full alignment with
+    ESRS E1 requires board-level governance sign-off and third-party assurance.
+  </div>
+
+  <!-- ═══════════════════ CARBON MARKET ═══════════════════ -->
+  <h2>5. Carbon Credit Market</h2>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="value">{{ "{:,.2f}".format(data.total_token_balance) }}</div>
+      <div class="label">Total GreenCredit Token Balance</div>
+    </div>
+    <div class="kpi-card">
+      <div class="value">{{ data.active_orders }}</div>
+      <div class="label">Active Market Orders</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TARGETS ─────────────════════════ -->
+  <h2>6. Science-Based Targets</h2>
+
+  <p>
+    Under the SBTi framework aligned with a 1.5°C pathway, the required year-over-year
+    emission reduction is <strong>4.2%</strong>, equating to a target of:
+  </p>
+
+  <div class="kpi-grid">
+    <div class="kpi-card" style="flex: 1 1 100%;">
+      <div class="value" style="color: var(--danger);">
+        −{{ "{:,.2f}".format(data.year_over_year_target_kg) }} kgCO₂e
+      </div>
+      <div class="label">Required Reduction for {{ data.reporting_year + 1 }}</div>
+    </div>
+  </div>
+
+  <div class="notice">
+    <strong>Recommendation:</strong>
+    Prioritize Scope 3 supply chain engagement and renewable energy procurement
+    (Scope 2) to achieve the largest absolute reductions. Deploy GreenOps workload
+    scheduling to optimize compute carbon footprint in real time.
+  </div>
+
+  <!-- ═══════════════════ DISCLAIMER ══════════════════════ -->
+  <div class="disclaimer">
+    <strong>Disclaimer:</strong> This report is generated by CloudGreen OS for internal
+    sustainability assessment purposes. It does not constitute a formal CSRD filing
+    and requires review by a qualified sustainability auditor and board-level
+    sign-off before submission to regulatory authorities under EU Directive 2022/2464.
+    Data accuracy depends on the completeness of upstream emission reporting
+    by registered suppliers.
+  </div>
+
+</body>
+</html>
