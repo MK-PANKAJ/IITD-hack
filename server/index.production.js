@@ -1,39 +1,49 @@
-const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
-require("dotenv").config(); // Fallback to local .env if root not found
+require("dotenv").config();
 const Fastify = require("fastify");
 const cors = require("@fastify/cors");
 const axios = require("axios");
 const { z } = require("zod");
 const { randomUUID } = require("crypto");
 const crypto = require("crypto");
+const fs = require("fs/promises");
+const path = require("path");
 const { createServer } = require("node:http");
 const { createYoga, createSchema } = require("graphql-yoga");
-const { ethers } = require("ethers");
-
-const { pg, neo, producer, verifyKeycloakToken, initServices } = require("./services");
-
-// Setup Provider and Signer for Blockchain Tokenization
-const provider = new ethers.JsonRpcProvider(process.env.CHAIN_RPC_URL);
-const signer = new ethers.Wallet(process.env.BLOCKCHAIN_SIGNER_KEY, provider);
-
-// Minimal ABI for minting and balance checking
-const GCRD_ABI = [
-  "function mintCredits(address to, uint256 amount) public",
-  "function balanceOf(address account) public view returns (uint256)"
-];
-
-const greenCreditContract = new ethers.Contract(
-  process.env.GREENCREDIT_CONTRACT,
-  GCRD_ABI,
-  signer
-);
 
 const app = Fastify({ logger: false });
 const PORT = Number(process.env.PORT || 8787);
+const DATA_DIR = path.join(__dirname, "data");
+const VC_STORE = path.join(DATA_DIR, "credentials.json");
+const ORDER_STORE = path.join(DATA_DIR, "orders.json");
+const SUPPLIER_STORE = path.join(DATA_DIR, "suppliers.json");
+const SUPPLIER_EMISSIONS_STORE = path.join(DATA_DIR, "supplier-emissions.json");
+const INCIDENT_STORE = path.join(DATA_DIR, "incidents.json");
+const TOKEN_BALANCE_STORE = path.join(DATA_DIR, "token-balances.json");
+const TRADE_STORE = path.join(DATA_DIR, "trades.json");
+const ANALYTICS_STORE = path.join(DATA_DIR, "analytics-events.json");
+const AUTH_SECRET = String(process.env.AUTH_SECRET || "cloudgreen-dev-secret");
+
+async function ensureFile(filePath, fallback) {
+  try {
+    await fs.access(filePath);
+  } catch {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(fallback, null, 2), "utf8");
+  }
+}
+
+async function loadJson(filePath, fallback) {
+  await ensureFile(filePath, fallback);
+  const raw = await fs.readFile(filePath, "utf8");
+  return JSON.parse(raw);
+}
+
+async function saveJson(filePath, data) {
+  await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
+}
+
 async function loadTokenBalances() {
-  const { rows } = await pg.query("SELECT * FROM token_balances");
-  return rows.reduce((acc, row) => ({ ...acc, [row.account]: Number(row.balance) }), {});
+  return loadJson(TOKEN_BALANCE_STORE, {});
 }
 
 function estimateFromWeather(tempC, windKmh) {
@@ -99,6 +109,26 @@ function sha256(input) {
   return crypto.createHash("sha256").update(String(input), "utf8").digest("hex");
 }
 
+function signToken(payload) {
+  const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const sig = crypto.createHmac("sha256", AUTH_SECRET).update(body).digest("base64url");
+  return `${body}.${sig}`;
+}
+
+function verifyToken(token) {
+  if (!token || !token.includes(".")) return null;
+  const [body, sig] = token.split(".");
+  const expected = crypto.createHmac("sha256", AUTH_SECRET).update(body).digest("base64url");
+  if (sig !== expected) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    if (!parsed.exp || Date.now() > parsed.exp) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 async function tryOllamaGenerate({ code, energyKw }) {
   const baseUrl = String(process.env.OLLAMA_BASE_URL || "http://localhost:11434").replace(/\/$/, "");
   const model = String(process.env.OLLAMA_MODEL || "llama3.1:8b");
@@ -139,50 +169,24 @@ app.post("/api/auth/login", async (request, reply) => {
   });
   const parsed = schema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
-  
-  try {
-    // In production, the React frontend would redirect directly to Keycloak using OAuth2 PKCE.
-    // For an MVP migration, we proxy the password grant locally using the provided credentials.
-    // If the email is admin@cloudgreen.dev, we use the bootstrap admin for demonstration.
-    const username = (parsed.data.email === "admin@cloudgreen.dev") ? "admin" : parsed.data.email.split("@")[0];
-    const password = (username === "admin") ? "cg-kc-adm1n-2026!" : "password"; // Placeholder for dev
-    
-    // Attempt standard form-urlencoded ROPC request against the 'master' or 'cloudgreen' realm
-    const realm = (username === "admin") ? "master" : "cloudgreen";
-    
-    // In a fully deployed setup, the user accesses keycloak directly. We'll return a placeholder success format here
-    // But verify the role logic matches the frontend expectation.
-    // We will generate a mock fastify JWT here for the sake of not breaking React state, but the endpoint verifies using JWKS.
-    return { token: "TODO_KEYCLOAK_DEV_TOKEN", role: parsed.data.role, notice: "Switched to Keycloak proxy." };
-  } catch (err) {
-    return reply.code(401).send({ error: "Keycloak Authentication Failed" });
-  }
+  const token = signToken({
+    sub: parsed.data.email.toLowerCase(),
+    role: parsed.data.role,
+    exp: Date.now() + 12 * 60 * 60 * 1000,
+  });
+  return { token, role: parsed.data.role };
 });
 
 async function requireRole(request, reply, roles) {
   const auth = String(request.headers.authorization || "");
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  try {
-    // Use Keycloak JWKS Verification
-    const payload = await verifyKeycloakToken(token);
-    // Keycloak Realm Roles are usually inside payload.realm_access.roles
-    // For local dev, we fall back to generic extraction
-    const userRole = payload.realm_access?.roles?.includes("admin") ? "admin" : "supplier";
-    if (!roles.includes(userRole) && !roles.includes("analyst")) {
-       reply.code(401).send({ error: "Unauthorized role via Keycloak" });
-       return null;
-    }
-    request.user = payload;
-    return payload;
-  } catch(e) {
-    // Fallback for DEV mode temporary token bypass for pipeline UI testing since Keycloak isn't running yet in the terminal
-    if (token === "TODO_KEYCLOAK_DEV_TOKEN") {
-      request.user = { role: "admin", sub: "dev@cloudgreen.dev" };
-      return request.user;
-    }
-    reply.code(401).send({ error: "Invalid Keycloak Bearer Token" });
+  const payload = verifyToken(token);
+  if (!payload || !roles.includes(payload.role)) {
+    reply.code(401).send({ error: "Unauthorized" });
     return null;
   }
+  request.user = payload;
+  return payload;
 }
 
 app.get("/api/carbon/current", async (request) => {
@@ -223,26 +227,23 @@ app.post("/api/vc/issue", async (request, reply) => {
   if (!parsed.success) {
     return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
   }
+  const store = await loadJson(VC_STORE, []);
   const credential = {
     id: `urn:vc:${randomUUID()}`,
-    supplierName: parsed.data.supplierName,
-    scope: parsed.data.scope,
-    emissionsKg: parsed.data.emissionsKg,
+    ...parsed.data,
     hash: randomUUID().replace(/-/g, ""),
     anchoredAt: new Date().toISOString(),
   };
-  await pg.query(
-    "INSERT INTO verifiable_credentials(id, supplier_name, scope, emissions_kg, hash) VALUES($1, $2, $3, $4, $5)",
-    [credential.id, credential.supplierName, credential.scope, credential.emissionsKg, credential.hash]
-  );
+  store.push(credential);
+  await saveJson(VC_STORE, store);
   return credential;
 });
 
 app.post("/api/vc/verify", async (request, reply) => {
   const hash = request.body?.hash;
   if (!hash) return reply.code(400).send({ error: "hash is required" });
-  const { rows } = await pg.query("SELECT id, supplier_name as \"supplierName\", scope, emissions_kg as \"emissionsKg\", hash, anchored_at as \"anchoredAt\" FROM verifiable_credentials WHERE hash = $1", [hash]);
-  const hit = rows[0];
+  const store = await loadJson(VC_STORE, []);
+  const hit = store.find((item) => item.hash === hash);
   return { verified: Boolean(hit), credential: hit || null };
 });
 
@@ -266,12 +267,6 @@ app.post("/api/pipeline/execute", async (request, reply) => {
     const signal = await getCarbonSignal("IN");
     const mode = getMode(signal.intensity);
     log(`Grid Carbon Intensity: ${signal.intensity}g/kWh (${mode.toUpperCase()}).`, "info");
-    
-    await producer.send({
-      topic: 'workload-metrics',
-      messages: [{ value: JSON.stringify({ ts: Date.now(), type: 'pipeline_init', mode, intensity: signal.intensity }) }]
-    });
-    log("Kafka telemetry metrics dispatched to 'workload-metrics'.", "success");
 
     // Step 3: Multi-Cloud Routing
     log("Step 3: Calculating Multi-Cloud Execution Route...", "info");
@@ -292,11 +287,10 @@ app.post("/api/pipeline/execute", async (request, reply) => {
 
     // Step 5: Web3 Token Ledger
     log("Step 5: Settling Web3 Automated Token Rewards...", "info");
+    const balances = await loadTokenBalances();
     const account = "supplier-autopipeline";
-    await pg.query(
-      "INSERT INTO token_balances (account, balance) VALUES ($1, $2) ON CONFLICT (account) DO UPDATE SET balance = token_balances.balance + $2, updated_at = now()",
-      [account, 50]
-    );
+    balances[account] = Number(balances[account] || 0) + 50;
+    await saveJson(TOKEN_BALANCE_STORE, balances);
     log(`Execution Complete. 50 Green Tokens minted to ${account}.`, "success");
 
     return { success: true, logs };
@@ -318,72 +312,57 @@ app.post("/api/marketplace/orders", async (request, reply) => {
     return reply.code(400).send({ error: "Invalid order", details: parsed.error.issues });
   }
 
-  const client = await pg.connect();
-  try {
-    await client.query('BEGIN');
-    const order = {
-      id: randomUUID(),
-      side: parsed.data.side,
-      price: parsed.data.price,
-      quantity: parsed.data.quantity,
-      remainingQuantity: parsed.data.quantity,
-      status: "open",
-    };
-    
-    const sortOrder = order.side === "buy" ? "ASC" : "DESC";
-    const { rows: opposite } = await client.query(
-      `SELECT * FROM orders WHERE side != $1 AND status = 'open' AND remaining_quantity > 0 ORDER BY price ${sortOrder} FOR UPDATE`,
-      [order.side]
-    );
+  const orders = await loadJson(ORDER_STORE, []);
+  const trades = await loadJson(TRADE_STORE, []);
+  const order = {
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    status: "open",
+    remainingQuantity: parsed.data.quantity,
+    ...parsed.data,
+  };
 
-    const matches = [];
-    for (const candidate of opposite) {
-      if (order.remainingQuantity <= 0) break;
-      const priceOk = order.side === "buy" ? order.price >= Number(candidate.price) : order.price <= Number(candidate.price);
-      if (!priceOk) continue;
-      
-      const quantity = Math.min(order.remainingQuantity, Number(candidate.remaining_quantity));
-      order.remainingQuantity -= quantity;
-      
-      const newRem = Number(candidate.remaining_quantity) - quantity;
-      const newStatus = newRem === 0 ? "filled" : "open";
-      await client.query("UPDATE orders SET remaining_quantity = $1, status = $2 WHERE id = $3", [newRem, newStatus, candidate.id]);
-      
-      const tradeId = `trd-${randomUUID()}`;
-      await client.query("INSERT INTO trades(id, buy_order_id, sell_order_id, price, quantity) VALUES($1, $2, $3, $4, $5)", [
-        tradeId,
-        order.side === "buy" ? order.id : candidate.id,
-        order.side === "sell" ? order.id : candidate.id,
-        candidate.price,
-        quantity
-      ]);
-      matches.push({ id: tradeId, quantity, price: candidate.price });
-    }
-    
-    order.status = order.remainingQuantity === 0 ? "filled" : "open";
-    await client.query("INSERT INTO orders(id, side, price, quantity, remaining_quantity, status) VALUES($1, $2, $3, $4, $5, $6)", [
-      order.id, order.side, order.price, order.quantity, order.remainingQuantity, order.status
-    ]);
-    
-    await client.query('COMMIT');
-    return { order, matches };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
+  const opposite = orders
+    .filter((o) => o.side !== order.side && o.status === "open" && o.remainingQuantity > 0)
+    .sort((a, b) => (order.side === "buy" ? a.price - b.price : b.price - a.price));
+
+  const matches = [];
+  for (const candidate of opposite) {
+    if (order.remainingQuantity <= 0) break;
+    const priceOk = order.side === "buy" ? order.price >= candidate.price : order.price <= candidate.price;
+    if (!priceOk) continue;
+    const quantity = Math.min(order.remainingQuantity, candidate.remainingQuantity);
+    order.remainingQuantity -= quantity;
+    candidate.remainingQuantity -= quantity;
+    if (candidate.remainingQuantity === 0) candidate.status = "filled";
+    const trade = {
+      id: `trd-${randomUUID()}`,
+      buyOrderId: order.side === "buy" ? order.id : candidate.id,
+      sellOrderId: order.side === "sell" ? order.id : candidate.id,
+      price: candidate.price,
+      quantity,
+      createdAt: new Date().toISOString(),
+    };
+    matches.push(trade);
+    trades.push(trade);
   }
+
+  if (order.remainingQuantity === 0) {
+    order.status = "filled";
+  }
+  orders.push(order);
+  await saveJson(TRADE_STORE, trades);
+  await saveJson(ORDER_STORE, orders);
+  return { order, matches };
 });
 
 app.get("/api/marketplace/book", async () => {
-  const { rows: buy } = await pg.query("SELECT id, side, price, quantity, remaining_quantity as \"remainingQuantity\", status FROM orders WHERE side = 'buy' AND status = 'open' ORDER BY price DESC LIMIT 10");
-  const { rows: sell } = await pg.query("SELECT id, side, price, quantity, remaining_quantity as \"remainingQuantity\", status FROM orders WHERE side = 'sell' AND status = 'open' ORDER BY price ASC LIMIT 10");
-  const { rows: recentTrades } = await pg.query("SELECT id, buy_order_id as \"buyOrderId\", sell_order_id as \"sellOrderId\", price, quantity, created_at as \"createdAt\" FROM trades ORDER BY created_at DESC LIMIT 10");
-  
+  const orders = await loadJson(ORDER_STORE, []);
+  const trades = await loadJson(TRADE_STORE, []);
   return {
-    buy: buy.map(r => ({ ...r, price: Number(r.price), quantity: Number(r.quantity), remainingQuantity: Number(r.remainingQuantity) })),
-    sell: sell.map(r => ({ ...r, price: Number(r.price), quantity: Number(r.quantity), remainingQuantity: Number(r.remainingQuantity) })),
-    recentTrades: recentTrades.map(r => ({ ...r, price: Number(r.price), quantity: Number(r.quantity) })),
+    buy: orders.filter((o) => o.side === "buy" && o.status === "open").sort((a, b) => b.price - a.price).slice(0, 10),
+    sell: orders.filter((o) => o.side === "sell" && o.status === "open").sort((a, b) => a.price - b.price).slice(0, 10),
+    recentTrades: trades.slice(-10).reverse(),
   };
 });
 
@@ -545,17 +524,16 @@ const supplierSchema = z.object({
 app.post("/api/suppliers/onboard", async (request, reply) => {
   const parsed = supplierSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
+  const suppliers = await loadJson(SUPPLIER_STORE, []);
   const supplier = { id: `sup-${randomUUID()}`, createdAt: new Date().toISOString(), status: "active", ...parsed.data };
-  await pg.query(
-    "INSERT INTO suppliers(id, name, email, country, status, created_at) VALUES($1, $2, $3, $4, $5, $6)",
-    [supplier.id, supplier.name, supplier.email, supplier.country, supplier.status, supplier.createdAt]
-  );
+  suppliers.push(supplier);
+  await saveJson(SUPPLIER_STORE, suppliers);
   return supplier;
 });
 
 app.get("/api/suppliers", async () => {
-  const { rows } = await pg.query("SELECT id, name, email, country, status, created_at as \"createdAt\" FROM suppliers");
-  return { suppliers: rows };
+  const suppliers = await loadJson(SUPPLIER_STORE, []);
+  return { suppliers };
 });
 
 app.post("/api/suppliers/emissions/upload", async (request, reply) => {
@@ -574,40 +552,29 @@ app.post("/api/suppliers/emissions/upload", async (request, reply) => {
     return { supplierName: String(supplierName || "").trim(), scope: String(scope || "").trim(), emissionsKg };
   }).filter((r) => r.supplierName && ["scope1", "scope2", "scope3"].includes(r.scope) && Number.isFinite(r.emissionsKg));
 
+  const store = await loadJson(SUPPLIER_EMISSIONS_STORE, []);
   const batchId = `batch-${randomUUID()}`;
   const now = new Date().toISOString();
   const enriched = rows.map((r) => ({ id: randomUUID(), batchId, uploadedAt: now, ...r }));
-  
-  if (enriched.length > 0) {
-    const valuesString = enriched.map((_, i) => `($${i*5 + 1}, $${i*5 + 2}, $${i*5 + 3}, $${i*5 + 4}, $${i*5 + 5})`).join(", ");
-    const flatParams = enriched.flatMap(r => [r.id, r.batchId, r.supplierName, r.scope, r.emissionsKg]);
-    await pg.query(
-      `INSERT INTO supplier_emissions(id, batch_id, supplier_name, scope, emissions_kg) VALUES ${valuesString}`,
-      flatParams
-    );
-  }
+  store.push(...enriched);
+  await saveJson(SUPPLIER_EMISSIONS_STORE, store);
   return { batchId, imported: enriched.length };
 });
 
 // Phase 3.3 — Supply chain graph query API (Neo4j CE-compatible semantics)
 app.get("/api/graph/exposure", async (request) => {
   const supplier = String(request.query?.supplier || "").trim().toLowerCase();
-  const session = neo.session();
-  try {
-    let query = "MATCH (s:Supplier)-[:REPORTED]->(e:Emissions) RETURN s.name AS name, SUM(e.emissionsKg) AS totalKg ORDER BY totalKg DESC";
-    if (supplier) {
-      query = `MATCH (s:Supplier)-[:REPORTED]->(e:Emissions) WHERE toLower(s.name) CONTAINS $supplier RETURN s.name AS name, SUM(e.emissionsKg) AS totalKg ORDER BY totalKg DESC`;
-    }
-    const result = await session.run(query, { supplier });
-    const nodes = result.records.map(record => {
-      const name = record.get("name");
-      const totalKg = Number(record.get("totalKg"));
-      return { name, totalKg, risk: classifyRisk(totalKg) };
-    }).slice(0, 5);
-    return { nodes, totalSuppliers: nodes.length };
-  } finally {
-    await session.close();
-  }
+  const emissions = await loadJson(SUPPLIER_EMISSIONS_STORE, []);
+  const grouped = new Map();
+  emissions.forEach((e) => {
+    const key = String(e.supplierName).toLowerCase();
+    grouped.set(key, (grouped.get(key) || 0) + Number(e.emissionsKg || 0));
+  });
+
+  const nodes = Array.from(grouped.entries()).map(([name, totalKg]) => ({ name, totalKg, risk: classifyRisk(totalKg) }));
+  const sorted = [...nodes].sort((a, b) => b.totalKg - a.totalKg);
+  const top = supplier ? sorted.filter((n) => n.name.includes(supplier)).slice(0, 5) : sorted.slice(0, 5);
+  return { nodes: top, totalSuppliers: nodes.length };
 });
 
 // Phase 3.4 — Executive dashboard and on-call integration
@@ -622,29 +589,28 @@ app.post("/api/oncall/incidents", async (request, reply) => {
   if (!ok) return;
   const parsed = incidentSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
+  const incidents = await loadJson(INCIDENT_STORE, []);
   const incident = { id: `inc-${randomUUID()}`, status: "open", createdAt: new Date().toISOString(), ...parsed.data };
-  await pg.query(
-    "INSERT INTO incidents(id, title, severity, owner, status, created_at) VALUES($1, $2, $3, $4, $5, $6)",
-    [incident.id, incident.title, incident.severity, incident.owner, incident.status, incident.createdAt]
-  );
+  incidents.push(incident);
+  await saveJson(INCIDENT_STORE, incidents);
   return incident;
 });
 
 app.get("/api/oncall/incidents", async () => {
-  const { rows } = await pg.query("SELECT id, title, severity, owner, status, created_at as \"createdAt\" FROM incidents");
-  return { incidents: rows };
+  const incidents = await loadJson(INCIDENT_STORE, []);
+  return { incidents: incidents.slice(-20).reverse() };
 });
 
 app.get("/api/executive/overview", async () => {
-  const { rows: suppliers } = await pg.query("SELECT COUNT(*) as count FROM suppliers");
-  const { rows: emissions } = await pg.query("SELECT COUNT(*) as count, SUM(emissions_kg) as total FROM supplier_emissions");
-  const { rows: incidents } = await pg.query("SELECT COUNT(*) as count FROM incidents WHERE status = 'open'");
-  
-  const openIncidents = Number(incidents[0].count);
+  const suppliers = await loadJson(SUPPLIER_STORE, []);
+  const emissions = await loadJson(SUPPLIER_EMISSIONS_STORE, []);
+  const incidents = await loadJson(INCIDENT_STORE, []);
+  const totalEmissionKg = emissions.reduce((acc, row) => acc + Number(row.emissionsKg || 0), 0);
+  const openIncidents = incidents.filter((i) => i.status === "open").length;
   return {
-    suppliers: Number(suppliers[0].count),
-    uploadedEmissionRows: Number(emissions[0].count),
-    totalEmissionKg: Number(emissions[0].total || 0),
+    suppliers: suppliers.length,
+    uploadedEmissionRows: emissions.length,
+    totalEmissionKg,
     openIncidents,
     slaStatus: openIncidents > 3 ? "at-risk" : "healthy",
     updatedAt: new Date().toISOString(),
@@ -652,79 +618,44 @@ app.get("/api/executive/overview", async () => {
 });
 
 // Phase 4.1 — Carbon token smart-contract equivalent APIs
-// Updated Token Minting (Real Blockchain Transaction)
+const tokenMintSchema = z.object({ account: z.string().min(2), amount: z.number().positive() });
+const tokenTransferSchema = z.object({
+  from: z.string().min(2),
+  to: z.string().min(2),
+  amount: z.number().positive(),
+});
+
 app.post("/api/token/mint", async (request, reply) => {
   const ok = await requireRole(request, reply, ["admin"]);
   if (!ok) return;
-  const { userAddress, amount } = request.body;
-  if (!userAddress || !amount) return reply.code(400).send({ error: "Address and amount required" });
-
-  try {
-    const tx = await greenCreditContract.mintCredits(userAddress, ethers.parseUnits(amount.toString(), 18));
-    const receipt = await tx.wait();
-    
-    // Log the transaction in PG for reporting
-    await pg.query(
-      "INSERT INTO token_balances (account, balance) VALUES ($1, $2) ON CONFLICT (account) DO UPDATE SET balance = token_balances.balance + $2",
-      [userAddress, amount]
-    );
-
-    return { 
-      success: true, 
-      txHash: receipt.hash,
-      message: `Successfully minted ${amount} GCRD to ${userAddress}` 
-    };
-  } catch (error) {
-    console.error("Blockchain Error:", error);
-    return reply.code(500).send({ error: "Blockchain transaction failed", details: error.message });
-  }
-});
-
-// New endpoint to check on-chain balance
-app.get("/api/token/balance/:address", async (request, reply) => {
-  try {
-    const balance = await greenCreditContract.balanceOf(request.params.address);
-    return { address: request.params.address, balance: ethers.formatUnits(balance, 18) };
-  } catch (error) {
-    return reply.code(500).send({ error: "Failed to fetch on-chain balance" });
-  }
+  const parsed = tokenMintSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
+  const balances = await loadTokenBalances();
+  const account = parsed.data.account.toLowerCase();
+  balances[account] = Number(balances[account] || 0) + parsed.data.amount;
+  await saveJson(TOKEN_BALANCE_STORE, balances);
+  return { account, balance: balances[account], tx: `mint-${randomUUID()}` };
 });
 
 app.post("/api/token/transfer", async (request, reply) => {
   const ok = await requireRole(request, reply, ["admin", "analyst"]);
   if (!ok) return;
-  const schema = z.object({ from: z.string().min(2), to: z.string().min(2), amount: z.number().positive() });
-  const parsed = schema.safeParse(request.body);
+  const parsed = tokenTransferSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
-  
+  const balances = await loadTokenBalances();
   const from = parsed.data.from.toLowerCase();
   const to = parsed.data.to.toLowerCase();
   const amount = parsed.data.amount;
-  
-  const client = await pg.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows: check } = await client.query("SELECT balance FROM token_balances WHERE account = $1 FOR UPDATE", [from]);
-    if (check.length === 0 || Number(check[0].balance) < amount) throw new Error("Insufficient balance");
-    
-    await client.query("UPDATE token_balances SET balance = balance - $1 WHERE account = $2", [amount, from]);
-    await client.query(
-      "INSERT INTO token_balances (account, balance) VALUES ($1, $2) ON CONFLICT (account) DO UPDATE SET balance = token_balances.balance + $2",
-      [to, amount]
-    );
-    await client.query('COMMIT');
-    return { from, to, amount, tx: `transfer-${randomUUID()}` };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    return reply.code(400).send({ error: err.message });
-  } finally {
-    client.release();
-  }
+  const fromBalance = Number(balances[from] || 0);
+  if (fromBalance < amount) return reply.code(400).send({ error: "Insufficient balance" });
+  balances[from] = fromBalance - amount;
+  balances[to] = Number(balances[to] || 0) + amount;
+  await saveJson(TOKEN_BALANCE_STORE, balances);
+  return { from, to, amount, tx: `transfer-${randomUUID()}` };
 });
 
 app.get("/api/token/balances", async () => {
-  const { rows } = await pg.query("SELECT * FROM token_balances");
-  const balances = rows.reduce((acc, row) => ({ ...acc, [row.account]: Number(row.balance) }), {});
+  const balances = await loadTokenBalances();
   return { balances };
 });
 
@@ -738,20 +669,24 @@ const analyticsEventSchema = z.object({
 app.post("/api/telemetry/data", async (request, reply) => {
   const parsed = analyticsEventSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
-  
-  const event = { id: `evt-${randomUUID()}`, ts: new Date().toISOString(), ...parsed.data };
-  await pg.query(
-    "INSERT INTO analytics_events(id, event, distinct_id, properties, ts) VALUES($1, $2, $3, $4, $5)",
-    [event.id, event.event, event.distinctId, JSON.stringify(event.properties || {}), event.ts]
-  );
+  const events = await loadJson(ANALYTICS_STORE, []);
+  const event = {
+    id: `evt-${randomUUID()}`,
+    ts: new Date().toISOString(),
+    ...parsed.data,
+  };
+  events.push(event);
+  await saveJson(ANALYTICS_STORE, events);
   return event;
 });
 
 app.get("/api/telemetry/summary", async () => {
-  const { rows } = await pg.query("SELECT event, count(*) as c FROM analytics_events GROUP BY event");
-  const eventCounts = rows.reduce((acc, row) => ({ ...acc, [row.event]: Number(row.c) }), {});
-  const totalEvents = rows.reduce((acc, row) => acc + Number(row.c), 0);
-  return { totalEvents, eventCounts };
+  const events = await loadJson(ANALYTICS_STORE, []);
+  const eventCounts = {};
+  events.forEach((e) => {
+    eventCounts[e.event] = Number(eventCounts[e.event] || 0) + 1;
+  });
+  return { totalEvents: events.length, eventCounts };
 });
 
 // Phase 4.3 — GraphQL API layer (Yoga)
@@ -804,28 +739,28 @@ const yoga = createYoga({
           return { ...signal, mode: getMode(signal.intensity) };
         },
         orderBook: async (_, { side }) => {
-          const { rows } = await pg.query("SELECT id, side, price, quantity, remaining_quantity as \"remainingQuantity\", status FROM orders WHERE side = $1 AND status = 'open' ORDER BY price " + (side === 'buy' ? 'DESC' : 'ASC') + " LIMIT 10", [side]);
-          return rows.map(r => ({ ...r, price: Number(r.price), quantity: Number(r.quantity), remainingQuantity: Number(r.remainingQuantity) }));
+          const orders = await loadJson(ORDER_STORE, []);
+          return orders.filter((o) => o.side === side && o.status === "open").slice(0, 10);
         },
         tokenBalances: async () => {
-          const { rows } = await pg.query("SELECT * FROM token_balances");
+          const balances = await loadTokenBalances();
           return {
-            entries: rows.map(row => ({
-              account: row.account,
-              balance: Number(row.balance),
+            entries: Object.entries(balances).map(([account, balance]) => ({
+              account,
+              balance: Number(balance),
             })),
           };
         },
         executiveOverview: async () => {
-          const { rows: suppliers } = await pg.query("SELECT COUNT(*) as count FROM suppliers");
-          const { rows: emissions } = await pg.query("SELECT COUNT(*) as count, SUM(emissions_kg) as total FROM supplier_emissions");
-          const { rows: incidents } = await pg.query("SELECT COUNT(*) as count FROM incidents WHERE status = 'open'");
-          
-          const openIncidents = Number(incidents[0].count);
+          const suppliers = await loadJson(SUPPLIER_STORE, []);
+          const emissions = await loadJson(SUPPLIER_EMISSIONS_STORE, []);
+          const incidents = await loadJson(INCIDENT_STORE, []);
+          const totalEmissionKg = emissions.reduce((acc, row) => acc + Number(row.emissionsKg || 0), 0);
+          const openIncidents = incidents.filter((i) => i.status === "open").length;
           return {
-            suppliers: Number(suppliers[0].count),
-            uploadedEmissionRows: Number(emissions[0].count),
-            totalEmissionKg: Number(emissions[0].total || 0),
+            suppliers: suppliers.length,
+            uploadedEmissionRows: emissions.length,
+            totalEmissionKg,
             openIncidents,
             slaStatus: openIncidents > 3 ? "at-risk" : "healthy",
           };
@@ -836,13 +771,8 @@ const yoga = createYoga({
   graphqlEndpoint: "/graphql",
 });
 
-app.listen({ port: PORT, host: "0.0.0.0" }).then(async () => {
+app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   console.log(`CloudGreen API running at http://localhost:${PORT}`);
-  
-  await initServices().catch(err => {
-    console.error("Failed to initialize Kafka / backend services:", err);
-  });
-
   const gqlPort = Number(process.env.GRAPHQL_PORT || 4000);
   createServer(yoga).listen(gqlPort, () => {
     console.log(`CloudGreen GraphQL running at http://localhost:${gqlPort}/graphql`);

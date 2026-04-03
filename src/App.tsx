@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CarbonAwareSdk } from "./services/carbon";
 import "./index.css";
 
 // ── API Base URL ──────────────────────────────────────────────────────
@@ -135,6 +136,34 @@ function App() {
     refetchInterval: 30000,
   });
 
+  // Phase 5 — Carbon-Aware SDK Integration (Adaptive UI)
+  const [gridIntensity, setGridIntensity] = useState<number>(0);
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+
+  useEffect(() => {
+    const checkCarbon = async () => {
+      try {
+        const sdk = new CarbonAwareSdk();
+        const intensity = await sdk.getEmissionsDataForLocation('uk-south');
+        const score = intensity[0].rating;
+        setGridIntensity(score);
+        
+        // Logic: If intensity > 300g/kWh, we consider the grid "Dirty"
+        // This prevents compute-heavy dashboard rendering/execution
+        if (score > 300) {
+          setIsDirty(true);
+        } else {
+          setIsDirty(false);
+        }
+      } catch (err) {
+        console.error("Carbon SDK failed", err);
+      }
+    };
+    checkCarbon();
+    const interval = setInterval(checkCarbon, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, []);
+
   // L5 Adaptive UI logic
   useEffect(() => {
     if (data?.signal) {
@@ -151,6 +180,7 @@ function App() {
   const [pipeRunning, setPipeRunning] = useState(false);
 
   const runE2EPipeline = async () => {
+    if (isDirty) return; // Guard against execution in dirty grid
     if (!authToken) {
       setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Error: Authentication missing. Please authenticate as Admin below.", type: "error" }]);
       return;
@@ -172,9 +202,7 @@ function App() {
       if (!res.ok) {
          setPipeLog(json.logs || [{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Server Error: Orchestrator failed.", type: "error" }]);
       } else {
-         // Display the real logs generated securely by the backend
          setPipeLog(json.logs);
-         // Automatically refresh the executive dashboard to show the new tokens
          refetchOverview();
       }
     } catch (e: any) {
@@ -339,13 +367,19 @@ function App() {
   };
 
   const mintToken = async () => {
+    if (!authToken) return setTokenRes("Error: Authenticate first.");
     const res = await apiFetch("/api/token/mint", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ account: mintAccount, amount: mintAmount }),
+      body: JSON.stringify({ userAddress: mintAccount, amount: mintAmount }),
     });
     const json = await res.json();
-    setTokenRes(`Minted to ${json.account}. Balance=${json.balance}`);
+    if (json.success) {
+      setTokenRes(`Success! Tx: ${json.txHash.slice(0,16)}... Tokens minted to ${mintAccount}`);
+    } else {
+      setTokenRes(`Error: ${json.error}`);
+    }
+    refetchOverview();
   };
 
   const transferToken = async () => {
@@ -460,14 +494,36 @@ function App() {
         </section>
 
         {/* E2E WORKLOAD PIPELINE */}
-        <section className="card" style={{ gridColumn: '1 / -1', background: 'rgba(46, 160, 67, 0.05)' }}>
-          <h2>End-to-End Interconnected Workflow Log</h2>
-          <p className="muted">L1 Trust &rarr; L3 Orchestrator &rarr; L4 Intelligence &rarr; L5 Token Reward</p>
+        <section className={`card ${isDirty ? "border-red-900" : ""}`} style={{ gridColumn: '1 / -1', background: isDirty ? 'rgba(248, 81, 73, 0.05)' : 'rgba(46, 160, 67, 0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h2>End-to-End Interconnected Workflow Log</h2>
+              <p className="muted">L1 Trust &rarr; L3 Orchestrator &rarr; L4 Intelligence &rarr; L5 Token Reward</p>
+            </div>
+            {gridIntensity > 0 && (
+              <div className={`grid-badge ${isDirty ? "dirty" : "clean"}`}>
+                {isDirty ? "⚠️" : "✔️"}
+                {gridIntensity} g/kWh
+              </div>
+            )}
+          </div>
+          
           <div className="row">
-            <button onClick={runE2EPipeline} disabled={pipeRunning}>
-              {pipeRunning ? "Executing Lifecycle..." : "Execute Automated Workflow"}
+            <button 
+               onClick={runE2EPipeline} 
+               disabled={pipeRunning || isDirty}
+               style={isDirty ? { borderColor: 'var(--error)', color: 'var(--error)', background: 'transparent' } : {}}
+            >
+              {pipeRunning ? "Executing Lifecycle..." : isDirty ? "Grid too Dirty to Execute" : "Execute Automated Workflow"}
             </button>
           </div>
+
+          {isDirty && (
+            <div className="error" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🚨 Local grid intensity is high ({gridIntensity}g/kWh). Compute-heavy workloads are paused to prevent carbon spikes.</span>
+            </div>
+          )}
+
           {pipeLog.length > 0 && (
             <div className="textarea" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '120px' }}>
               {pipeLog.map((log, i) => (

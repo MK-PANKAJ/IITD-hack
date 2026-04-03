@@ -14,9 +14,15 @@
   "dependencies": {
     "@fastify/cors": "^11.2.0",
     "axios": "^1.14.0",
+    "ethers": "^6.16.0",
     "fastify": "^5.8.4",
     "graphql": "^16.13.2",
     "graphql-yoga": "^5.18.1",
+    "jsonwebtoken": "^9.0.3",
+    "jwks-rsa": "^4.0.1",
+    "kafkajs": "^2.2.4",
+    "neo4j-driver": "^6.0.1",
+    "pg": "^8.20.0",
     "uuid": "^13.0.0",
     "zod": "^4.3.6"
   }

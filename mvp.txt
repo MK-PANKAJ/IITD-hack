@@ -1,0 +1,222 @@
+Free & Open Source Stack — Full Replacement Guide
+Every tool in CloudGreen OS uses a free, open-source alternative. The table below maps every previously paid or commercial tool to its OSS replacement. License column confirms all are permissively licensed for commercial use.
+Paid → Free Replacements
+Complete Free Stack Reference by Layer
+Backend & API
+Data & Storage
+Infrastructure & DevOps
+Observability (Grafana LGTM Stack — All Free)
+Security & Compliance
+AI / ML (Self-Hosted, No API Fees)
+Phase 1 — Free Stack Summary
+Step 1.1 — Repository & Dev Environment
+# 1. Install free toolchain
+curl -fsSL https://get.pnpm.io/install.sh | sh
+pnpm dlx create-turbo@latest cloudgreen-os
+# 2. Create local kind cluster (free Kubernetes)
+kind create cluster --config infra/kind/cluster.yaml
+# 3. Install CNCF free tools
+helm install cert-manager jetstack/cert-manager -n cert-manager --create-namespace
+helm install linkerd2 linkerd/linkerd-crds && linkerd install | kubectl apply -f -
+helm install kepler kepler/kepler -n monitoring
+# 4. Install OpenBao (free Vault replacement)
+helm install openbao openbao/openbao -n vault --set server.dev.enabled=true
+Step 1.2 — Carbon Signal Bus (Free APIs)
+# Free environment variables — no paid keys needed
+CO2SIGNAL_API_KEY=<free from co2signal.com>
+ENTSOE_API_KEY=<free from transparency.entsoe.eu>
+KAFKA_BROKERS=kafka-0.kafka-headless:9092
+INFLUXDB_URL=http://influxdb:8086
+APICURIO_URL=http://apicurio-registry:8080
+helm repo add strimzi https://strimzi.io/charts/
+helm install strimzi strimzi/strimzi-kafka-operator -n kafka
+kubectl apply -f infra/kafka/cluster.yaml    # 3-broker Kafka cluster
+# Apicurio Registry — free Confluent Schema Registry replacement
+helm repo add apicurio https://www.apicur.io/registry/helm
+helm install apicurio apicurio/apicurio-registry -n kafka
+// services/carbon-signal/package.json — all MIT/Apache deps
+{ "dependencies": {
+  "fastify": "^4",       // MIT
+  "kafkajs": "^2",       // MIT
+  "avsc":    "^5",       // MIT
+  "axios":   "^1"        // MIT
+}}
+Step 1.3 — Verifiable Credential Service (Free Stack)
+# Deploy Hyperledger Fabric with MiniFab (free)
+curl -o minifab -sL https://tinyurl.com/yxa2q6yr && chmod +x minifab
+./minifab netup -s couchdb -e true -o cloudgreen.io
+./minifab channelcreate -c sustainability-audit-channel
+./minifab ccup -n AuditAnchor -l go -v 1.0
+// All free VC libraries
+pnpm add did-jwt @digitalbazaar/vc @digitalbazaar/ed25519-verification-key-2020
+pnpm add kubo-rpc-client        // MIT — IPFS client
+pnpm add @hyperledger/fabric-gateway  // Apache 2.0
+Step 1.4 — Carbon-Aware k8s Scheduler (Free)
+helm repo add kedacore https://kedacore.github.io/charts
+helm install keda kedacore/keda -n keda
+# kube-prometheus-stack — Prometheus + Grafana OSS (free)
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install monitoring prometheus-community/kube-prometheus-stack -n monitoring
+Step 1.5 — Frontend (All Free)
+cd apps/web
+pnpm create next-app@14 . --typescript --tailwind --app   # MIT
+pnpm add zustand @tanstack/react-query recharts           # MIT
+pnpm add lucide-react @radix-ui/react-dialog              # MIT
+# Carbon-Aware SDK — Microsoft open source, MIT
+pnpm add @microsoft/carbon-aware-sdk
+Phase 1 — Definition of Done
+Phase 2 — Free Stack Summary
+Step 2.1 — AI GreenOps Engine (Self-Hosted LLM)
+# Python services — all free
+pip install codecarbon opentelemetry-sdk opentelemetry-exporter-otlp
+# Node.js services — all MIT/Apache
+pnpm add @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node
+pip install mlflow feast scikit-learn torch autogluon  # all free
+# Start MLflow tracking server (connects to PostgreSQL + MinIO)
+mlflow server --backend-store-uri postgresql://... --default-artifact-root s3://mlflow/
+# Install Ollama (free, MIT)
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull llama3.1:8b        # Meta Llama 3.1 8B — free
+ollama pull codellama:13b      # code-optimized variant
+# Deploy as k8s Deployment with GPU node selector
+kubectl apply -f infra/helm/ollama/deployment.yaml
+# services/greenops-engine/src/llm_advisor.py
+import httpx
+async def generate_recommendation(code: str, energy_kw: float) -> str:
+    r = await httpx.post('http://ollama:11434/api/generate', json={
+        'model': 'llama3.1:8b',
+        'prompt': f'GreenOps: function uses {energy_kw}kW. Optimize:\n{code}',
+        'stream': False
+    })
+    return r.json()['response']
+Step 2.2 — Zero-Knowledge Proofs (Free)
+# Install Circom (free, GPL-3.0)
+npm i -g circom snarkjs
+# Compile circuit
+circom circuits/EmissionRangeProof.circom --r1cs --wasm --sym
+# Trusted setup (use public ptau — free download)
+wget https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_15.ptau
+snarkjs groth16 setup EmissionRangeProof.r1cs powersOfTau28_hez_final_15.ptau circuit.zkey
+snarkjs zkey export solidityverifier circuit.zkey Verifier.sol
+# Deploy Verifier to local Hardhat chain (zero gas cost)
+npx hardhat run scripts/deploy.js --network localhost
+Step 2.3 — Multi-Cloud Routing with OpenTofu
+# Replace 'terraform' with 'tofu' — identical commands, zero license cost
+curl -fsSL https://get.opentofu.org/install-opentofu.sh | sh
+tofu -chdir=infra/aws init
+tofu -chdir=infra/aws apply -var='region=eu-north-1'
+kubectl create namespace argo
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/latest/download/install.yaml
+kubectl apply -n argo -f https://raw.githubusercontent.com/argoproj/argo-events/stable/manifests/install.yaml
+Step 2.4 — Adaptive Frontend (Microsoft Carbon-Aware SDK, MIT)
+pnpm add @microsoft/carbon-aware-sdk    # MIT — free
+pnpm add next-pwa workbox-webpack-plugin # MIT — free
+# Umami analytics — self-hosted, MIT license
+helm install umami umami/umami -n monitoring \
+  --set postgresql.enabled=true
+Phase 2 — Definition of Done
+Phase 3 — Free Stack Summary
+Step 3.1 — CSRD Compliance Engine (Free)
+pip install fastapi weasyprint arelle-release  # all free
+# WeasyPrint generates CSRD PDF from Jinja2 HTML template
+from weasyprint import HTML
+HTML(string=rendered_html).write_pdf('/tmp/csrd_report.pdf')
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install keycloak bitnami/keycloak -n auth \
+  --set auth.adminUser=admin \
+  --set postgresql.enabled=true
+# Import realm config
+kubectl exec keycloak-0 -- /opt/keycloak/bin/kc.sh import \
+  --file /config/cloudgreen-realm.json
+Step 3.2 — Supplier Portal (Next.js + Keycloak, Free)
+cd apps/supplier-portal
+pnpm create next-app@14 . --typescript --tailwind --app
+pnpm add next-auth@beta @auth/core         # MIT
+pnpm add react-hook-form zod papaparse     # MIT
+pnpm add nodemailer                        # MIT — use with Gmail SMTP (free)
+Step 3.3 — Supply Chain Graph (Neo4j CE, Free)
+helm repo add neo4j https://helm.neo4j.com/neo4j
+helm install neo4j neo4j/neo4j -n graph \
+  --set neo4j.edition=community \
+  --set volumes.data.mode=defaultStorageClass
+# neo4j CE is free — no license key required
+Step 3.4 — Executive Dashboard & On-Call (Free)
+helm install grafana-oncall grafana/oncall -n monitoring \
+  --set base_url=https://oncall.your-domain.com \
+  --set grafana.enabled=true
+helm repo add litmuschaos https://litmuschaos.github.io/litmus-helm/
+helm install chaos litmuschaos/litmus -n litmus --create-namespace
+Phase 3 — Definition of Done
+Phase 4 — Free Stack Summary
+Step 4.1 — Carbon Token Smart Contracts (Free)
+pnpm add -D hardhat @nomicfoundation/hardhat-toolbox  # MIT
+pnpm add @openzeppelin/contracts                      # MIT
+pnpm add ethers                                       # MIT
+# Run local chain — zero cost, instant finality
+npx hardhat node
+npx hardhat run scripts/deploy.js --network localhost
+# For free testnet deployment (no real money):
+npx hardhat run scripts/deploy.js --network polygon_amoy
+Step 4.2 — Marketplace Backend (Free)
+# Valkey — free Redis alternative (BSD-3 license)
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install valkey bitnami/valkey -n data \
+  --set architecture=replication
+# All existing Redis/ioredis clients work unchanged
+Step 4.3 — Developer API Platform (Free)
+pnpm add graphql-yoga @pothos/core graphql-mesh  # all MIT/ISC
+pnpm add @graphql-tools/federation               # MIT
+helm repo add traefik https://traefik.github.io/charts
+helm install traefik traefik/traefik -n traefik \
+  --set ingressClass.enabled=true \
+  --set ports.websecure.tls.certResolver=letsencrypt
+# Rate limiting middleware — free, no Redis needed for small scale
+kubectl apply -f infra/traefik/rate-limit-middleware.yaml
+# Generate docs site
+pnpm create docusaurus@latest apps/developer-portal classic  # MIT
+# Auto-generate client SDKs from OpenAPI spec (Apache 2.0)
+npx openapi-generator-cli generate \
+  -i openapi/cloudgreen-os.yaml \
+  -g typescript-axios -o sdks/typescript
+npx openapi-generator-cli generate \
+  -i openapi/cloudgreen-os.yaml \
+  -g python -o sdks/python
+# Deploy to GitHub Pages (free)
+pnpm --filter developer-portal run deploy
+Step 4.4 — PostHog OSS — Free Product Analytics (MIT)
+helm repo add posthog https://posthog.github.io/charts/
+helm install posthog posthog/posthog -n analytics \
+  --set cloud=private
+Phase 4 — Definition of Done
+Cross-Phase Standards — 100% Free Toolchain
+License Compatibility Matrix
+Free CI/CD Stack
+Free Environment Variable Template
+# ── Carbon Signal (free APIs) ───────────────────────
+CO2SIGNAL_API_KEY=<free from co2signal.com — no credit card>
+ENTSOE_API_KEY=<free from transparency.entsoe.eu>
+# ── Message Bus ─────────────────────────────────────
+KAFKA_BROKERS=kafka-0.kafka-headless.kafka.svc:9092
+APICURIO_REGISTRY_URL=http://apicurio-registry:8080/apis/registry/v2
+# ── Storage ──────────────────────────────────────────
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/cloudgreen
+INFLUXDB_URL=http://influxdb:8086
+INFLUXDB_TOKEN=<generated on first boot>
+MINIO_ENDPOINT=http://minio:9000
+MINIO_ACCESS_KEY=<set in Helm values>
+REDIS_URL=redis://valkey:6379          # Valkey — free Redis fork
+# ── Secret Management ────────────────────────────────
+OPENBAO_ADDR=http://openbao.vault.svc:8200  # OpenBao — free Vault fork
+OPENBAO_TOKEN=<root token from init>
+# ── Blockchain (free testnet / local) ────────────────
+HARDHAT_NETWORK=localhost              # or polygon_amoy for testnet
+CHAIN_RPC_URL=http://hardhat-node:8545 # local — zero gas
+GREENCREDIT_CONTRACT=0x<deployed-address>
+# ── AI / LLM (self-hosted, zero API cost) ────────────
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.1:8b
+MLFLOW_TRACKING_URI=http://mlflow:5000
+# ── Observability ────────────────────────────────────
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+GRAFANA_URL=http://grafana:3000
+Estimated Infrastructure Cost (Self-Hosted)

@@ -318,3 +318,39 @@ body.theme-critical button:hover {
   background: #30363d;
   box-shadow: none;
 }
+
+/* Phase 5 - Carbon-Aware Status Badge */
+.grid-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.grid-badge.clean {
+  background: rgba(46, 160, 67, 0.1);
+  color: #4aec74;
+  border-color: rgba(46, 160, 67, 0.2);
+  box-shadow: 0 0 10px rgba(46, 160, 67, 0.1);
+}
+
+.grid-badge.dirty {
+  background: rgba(248, 81, 73, 0.1);
+  color: var(--error);
+  border-color: rgba(248, 81, 73, 0.2);
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(248, 81, 73, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0); }
+}
+
+.border-red-900 {
+  border-color: rgba(248, 81, 73, 0.5) !important;
+}

@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudgreen
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudgreen-api
+  namespace: cloudgreen
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloudgreen-api
+  template:
+    metadata:
+      labels:
+        app: cloudgreen-api
+    spec:
+      containers:
+      - name: api
+        image: cg-registry:5000/cloudgreen-api:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8789
+        - containerPort: 4000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: POSTGRES_URI
+          value: "postgresql://cloudgreen_admin:cg-poly-s3cur3-2026!@cloudgreen-pg-cluster:5432/cloudgreen"
+        - name: NEO4J_URI
+          value: "bolt://my-neo4j:7687"
+        - name: NEO4J_USER
+          value: "neo4j"
+        - name: NEO4J_PASSWORD
+          value: "cg-graph-s3cur3-2026!"
+        - name: KAFKA_BROKERS
+          value: "cloudgreen-kafka-kafka-bootstrap:9092"
+        - name: KEYCLOAK_JWKS_URL
+          value: "http://cloudgreen-keycloak:8080/realms/cloudgreen/protocol/openid-connect/certs"
+        # Reference OpenBao secrets injected via external-secrets or vault-k8s in final prod
+        # - name: SECRETS_FILE
+        #   value: "/mnt/secrets/vault-token"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudgreen-api
+  namespace: cloudgreen
+spec:
+  ports:
+  - name: http
+    port: 8789
+    targetPort: 8789
+  - name: graphql
+    port: 4000
+    targetPort: 4000
+  selector:
+    app: cloudgreen-api
