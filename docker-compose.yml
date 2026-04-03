@@ -14,7 +14,7 @@
 services:
   # ----- Kafka (KRaft Mode) -----
   kafka:
-    image: bitnami/kafka:3.7.0
+    image: public.ecr.aws/bitnami/kafka:3.7.0
     container_name: cg-kafka
     restart: unless-stopped
     ports:
@@ -87,7 +87,7 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: cg-kc-adm1n-2026!
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgresql:5432/keycloak
+      KC_DB_URL: jdbc:postgresql://postgresql:5432/cloudgreen
       KC_DB_USERNAME: cloudgreen_admin
       KC_DB_PASSWORD: cg-poly-s3cur3-2026!
       KC_HEALTH_ENABLED: "true"

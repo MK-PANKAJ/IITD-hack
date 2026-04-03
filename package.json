@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"pnpm run dev:web\" \"pnpm run dev:api\"",
     "dev:web": "vite",
-    "dev:api": "node server/index.js",
+    "dev:api": "node --watch server/index.js",
     "smoke": "node scripts/smoke-test.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

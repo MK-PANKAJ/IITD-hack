@@ -1,0 +1,6 @@
+{
+    "circomCompiled":  true,
+    "bits":  32,
+    "maxSupportedValue":  4294967295,
+    "mode":  "circom-groth16"
+}

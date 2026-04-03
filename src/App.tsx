@@ -11,9 +11,11 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.repl
 const GQL_URL = (import.meta.env.VITE_GRAPHQL_URL as string | undefined) ?? "http://localhost:4000/graphql";
 
 /** Wrapper around fetch() that prepends API_BASE to relative /api/ paths. */
-function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${API_BASE}${path}`, init);
-}
+const apiFetch = (url: string, init?: RequestInit) => {
+  return fetch(`${API_BASE}${url}`, init);
+};
+
+
 
 type Dashboard = {
   signal: { intensity: number; mode: string; source: string; ts: string };
@@ -27,17 +29,6 @@ type GreenOpsAnalyze = {
   suggestion: string;
   snippetPreview: string;
   llm: string;
-};
-
-type ZkProof = {
-  implementation: string;
-  commitment: string;
-  proof: string;
-  emissionKg: number;
-  minKg: number;
-  maxKg: number;
-  rangeOk: boolean;
-  createdAt: string;
 };
 
 type RoutingPlan = {
@@ -84,59 +75,60 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 function App() {
-  const [hashInput, setHashInput] = useState("");
-  const [verifyResult, setVerifyResult] = useState<string>("");
+  const [authToken, setAuthToken] = useState<string>("");
+  const [authMsg, setAuthMsg] = useState<string>("");
 
-  // Phase 2.1 — GreenOps Advisor
-  const [codeInput, setCodeInput] = useState("for i in range(1000000):\n    x = i*i\n    y = x%97");
+  const [codeInput, setCodeInput] = useState("for i in range(100):... # Simulate workload");
   const [greenOps, setGreenOps] = useState<GreenOpsAnalyze | null>(null);
   const [greenOpsError, setGreenOpsError] = useState<string | null>(null);
   const [isGreenOpsLoading, setIsGreenOpsLoading] = useState(false);
 
-  // Phase 2.2 — ZK proof (production range proof integration)
-  const [emissionKg, setEmissionKg] = useState<number>(250);
-  const [minKg, setMinKg] = useState<number>(100);
-  const [maxKg, setMaxKg] = useState<number>(400);
-  const [zk, setZk] = useState<ZkProof | null>(null);
-  const [zkVerify, setZkVerify] = useState<string>("");
-
-  // Phase 2.3 — Multi-cloud routing plan
-  const [routingWorkload, setRoutingWorkload] = useState("supplier-import");
+  const [routingWorkload, setRoutingWorkload] = useState("api-cluster-prod");
   const [routing, setRouting] = useState<RoutingPlan | null>(null);
   const [routingErr, setRoutingErr] = useState<string | null>(null);
 
-  // Phase 3 — CSRD & Enterprise
-  const [csrd, setCsrd] = useState<CsrdReport | null>(null);
-  const [csrdOrg, setCsrdOrg] = useState("Global Manufacturing Corp");
-  const [supplierRes, setSupplierRes] = useState<string>("");
-  const [csvRes, setCsvRes] = useState<string>("");
-  const [graphRes, setGraphRes] = useState<string>("");
-  const [incidentRes, setIncidentRes] = useState<string>("");
+  // Default to Signer (Hardhat #0) as per user confirmation
+  const [transferFrom, setTransferFrom] = useState("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+  const [transferTo, setTransferTo] = useState("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"); // Hardhat #1
+  const [transferAmount, setTransferAmount] = useState(0);
+  const [tokenRes, setTokenRes] = useState("");
 
-  // Phase 4 — Token & Ecosystem
-  const [tokenRes, setTokenRes] = useState<string>("");
-  const [analyticsRes, setAnalyticsRes] = useState<string>("");
-  const [gqlRes, setGqlRes] = useState<string>("");
-  const [mintAccount, setMintAccount] = useState("org-treasury");
-  const [mintAmount, setMintAmount] = useState<number>(1000);
-  const [transferFrom, setTransferFrom] = useState("org-treasury");
-  const [transferTo, setTransferTo] = useState("supplier-rewards");
-  const [transferAmount, setTransferAmount] = useState<number>(100);
-  const [authToken, setAuthToken] = useState("");
-  const [authMsg, setAuthMsg] = useState("");
+
+  const [csrdOrg, setCsrdOrg] = useState("Global Manufacturing Corp");
+  const [csrd, setCsrd] = useState<CsrdReport | null>(null);
+
+  const [supplierRes, setSupplierRes] = useState("");
+  const [isAddingSupplier, setIsAddingSupplier] = useState(false);
+  const [newSupName, setNewSupName] = useState("");
+  const [newSupEmail, setNewSupEmail] = useState("");
+  const [newSupCountry, setNewSupCountry] = useState("");
+
+  const [graphRes, setGraphRes] = useState("");
+  const [incidentRes, setIncidentRes] = useState("");
+  const [analyticsRes, setAnalyticsRes] = useState("");
+  const [gqlRes, setGqlRes] = useState("");
+  const [gqlRaw, setGqlRaw] = useState<any>(null);
 
   const { data, refetch, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => fetchJson<Dashboard>("/api/dashboard"),
     refetchInterval: 30000,
   });
+
   const { data: execOverview, refetch: refetchOverview } = useQuery({
     queryKey: ["executive-overview"],
     queryFn: () => fetchJson<ExecutiveOverview>("/api/executive/overview"),
     refetchInterval: 30000,
   });
 
-  // Phase 5 — Carbon-Aware SDK Integration (Adaptive UI)
+  const { data: tokenBalances, refetch: refetchBalances } = useQuery({
+    queryKey: ["token-balances"],
+    queryFn: () => fetchJson<{ balances: Record<string, number> }>("/api/token/balances"),
+    refetchInterval: 10000,
+  });
+
+  const currentFromBalance = tokenBalances?.balances[transferFrom] || 0;
+
   const [gridIntensity, setGridIntensity] = useState<number>(0);
   const [isDirty, setIsDirty] = useState<boolean>(false);
 
@@ -147,24 +139,17 @@ function App() {
         const intensity = await sdk.getEmissionsDataForLocation('uk-south');
         const score = intensity[0].rating;
         setGridIntensity(score);
-        
-        // Logic: If intensity > 300g/kWh, we consider the grid "Dirty"
-        // This prevents compute-heavy dashboard rendering/execution
-        if (score > 300) {
-          setIsDirty(true);
-        } else {
-          setIsDirty(false);
-        }
+        if (score > 300) setIsDirty(true);
+        else setIsDirty(false);
       } catch (err) {
         console.error("Carbon SDK failed", err);
       }
     };
     checkCarbon();
-    const interval = setInterval(checkCarbon, 60000); // Check every minute
+    const interval = setInterval(checkCarbon, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  // L5 Adaptive UI logic
   useEffect(() => {
     if (data?.signal) {
       if (data.signal.mode === "critical" || data.signal.intensity > 400) {
@@ -175,61 +160,36 @@ function App() {
     }
   }, [data?.signal]);
 
-  // Unified Pipeline State
   const [pipeLog, setPipeLog] = useState<{ ts: string, msg: string, type: string }[]>([]);
   const [pipeRunning, setPipeRunning] = useState(false);
 
   const runE2EPipeline = async () => {
-    if (isDirty) return; // Guard against execution in dirty grid
+    if (isDirty) return;
     if (!authToken) {
       setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Error: Authentication missing. Please authenticate as Admin below.", type: "error" }]);
       return;
     }
     setPipeRunning(true);
     setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Initiating remote pipeline execution...", type: "info" }]);
-
     try {
       const res = await apiFetch("/api/pipeline/execute", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${authToken}` 
-        },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
+        body: JSON.stringify({}),
       });
-      
       const json = await res.json();
-      
       if (!res.ok) {
          setPipeLog(json.logs || [{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Server Error: Orchestrator failed.", type: "error" }]);
       } else {
          setPipeLog(json.logs);
          refetchOverview();
+         refetchBalances();
       }
+
     } catch (e: any) {
       setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: `Network failure: ${e.message}`, type: "error" }]);
     }
     setPipeRunning(false);
-  };
-
-  const issueCredential = async () => {
-    const res = await apiFetch("/api/vc/issue", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ supplierName: "Global Manufacturing Corp", scope: "scope3", emissionsKg: 126.4 }),
-    });
-    const json = await res.json();
-    setHashInput(json.hash || "");
-    setVerifyResult(`Issued VC: ${json.id}`);
-  };
-
-  const verifyCredential = async () => {
-    const res = await apiFetch("/api/vc/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hash: hashInput }),
-    });
-    const json = await res.json();
-    setVerifyResult(json.verified ? "Verified and anchored." : "Not found.");
   };
 
   const analyzeGreenOps = async () => {
@@ -247,36 +207,6 @@ function App() {
     }
   };
 
-  const generateZkProof = async () => {
-    setZk(null);
-    setZkVerify("");
-    const res = await apiFetch("/api/zk/proof", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emissionKg, minKg, maxKg }),
-    });
-    const json = (await res.json()) as ZkProof;
-    setZk(json);
-  };
-
-  const verifyZkProof = async () => {
-    if (!zk) return;
-    setZkVerify("");
-    const res = await apiFetch("/api/zk/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        commitment: zk.commitment,
-        proof: zk.proof,
-        emissionKg,
-        minKg,
-        maxKg,
-      }),
-    });
-    const json = await res.json();
-    setZkVerify(json.verified ? "ZK cryptographic proof successfully verified." : "Verification failed.");
-  };
-
   const planRouting = async () => {
     setRoutingErr(null);
     setRouting(null);
@@ -289,50 +219,45 @@ function App() {
   };
 
   const generateCsrd = async () => {
-    const res = await apiFetch("/api/csrd/report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        organization: csrdOrg,
-        year: 2026,
-        scope1Kg: 1200,
-        scope2Kg: 900,
-        scope3Kg: 5400,
-      }),
-    });
-    const json = (await res.json()) as CsrdReport;
-    setCsrd(json);
+    try {
+      const res = await apiFetch("/api/csrd/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organization: csrdOrg, year: 2026 }),
+      });
+      const json = (await res.json()) as CsrdReport;
+      setCsrd(json);
+      await trackAnalytics("csrd_generated", { org: csrdOrg });
+    } catch (e: any) {
+      console.error("CSRD failed", e);
+    }
   };
 
   const onboardSupplier = async () => {
-    const res = await apiFetch("/api/suppliers/onboard", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Acme Steel", email: "ops@acme.test", country: "IN" }),
-    });
-    const json = await res.json();
-    setSupplierRes(`Onboarded: ${json.name} (${json.id})`);
-    refetchOverview();
-  };
-
-  const uploadCsv = async () => {
-    if (!authToken) {
-      setCsvRes("Error: You must hit 'Authenticate as Admin' below first.");
+    if (newSupName.length < 2 || newSupCountry.length < 2 || !newSupEmail.includes("@")) {
+      setSupplierRes("Error: Invalid inputs. Name/Country min 2 chars, valid email required.");
       return;
     }
-    const csv = "supplier,scope,emissionsKg\nAcme Steel,scope3,120.5\nAcme Steel,scope2,54.1\nBlue Plastics,scope3,310.2";
-    const res = await apiFetch("/api/suppliers/emissions/upload", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
-      body: JSON.stringify({ csv }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setCsvRes(`Upload failed: ${json.error}`);
-      return;
+    setSupplierRes("Processing...");
+    try {
+      const res = await apiFetch("/api/suppliers/onboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newSupName, email: newSupEmail, country: newSupCountry }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setSupplierRes(`Error: ${json.error || "Onboarding failed"}`);
+        return;
+      }
+      setSupplierRes(`Onboarded: ${json.name} (${json.id})`);
+      setIsAddingSupplier(false);
+      setNewSupName(""); setNewSupEmail(""); setNewSupCountry("");
+      refetchOverview();
+      await trackAnalytics("supplier_onboarded", { name: json.name });
+    } catch (err: any) {
+      setSupplierRes(`Network Error: ${err.message}`);
     }
-    setCsvRes(`CSV imported rows: ${json.imported} (batch: ${json.batchId})`);
-    refetchOverview();
   };
 
   const loadGraphExposure = async () => {
@@ -366,76 +291,89 @@ function App() {
     refetchOverview();
   };
 
-  const mintToken = async () => {
-    if (!authToken) return setTokenRes("Error: Authenticate first.");
-    const res = await apiFetch("/api/token/mint", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ userAddress: mintAccount, amount: mintAmount }),
-    });
-    const json = await res.json();
-    if (json.success) {
-      setTokenRes(`Success! Tx: ${json.txHash.slice(0,16)}... Tokens minted to ${mintAccount}`);
-    } else {
-      setTokenRes(`Error: ${json.error}`);
-    }
-    refetchOverview();
-  };
-
   const transferToken = async () => {
-    const res = await apiFetch("/api/token/transfer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ from: transferFrom, to: transferTo, amount: transferAmount }),
-    });
-    const json = await res.json();
-    if (json.error) {
-      setTokenRes(`Transfer failed: ${json.error}`);
+    if (transferAmount <= 0) {
+      setTokenRes("Error: Amount must be positive.");
       return;
     }
-    setTokenRes(`Transfer tx: ${json.tx}, ${json.amount} sent ${json.from} -> ${json.to}`);
+    const EVM_REGEX = /^0x[a-fA-F0-9]{40}$/;
+    if (!EVM_REGEX.test(transferTo)) {
+      setTokenRes("Error: Invalid Recipient Address. Must be 42-char 0x hex string.");
+      return;
+    }
+
+    setTokenRes("Initiating on-chain transfer...");
+    try {
+      const res = await apiFetch("/api/token/transfer", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ from: transferFrom, to: transferTo, amount: transferAmount }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setTokenRes(`Error: ${json.error || "Transfer failed"}`);
+        return;
+      }
+      setTokenRes(`Success: Tx ${json.tx.slice(0, 16)}... Confirmed.`);
+      refetchBalances();
+    } catch (e: any) {
+      setTokenRes(`Network error: ${e.message}`);
+    }
   };
 
   const loginAsAdmin = async () => {
     const res = await apiFetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "admin@cloudgreen.local", role: "admin" }),
+      body: JSON.stringify({ username: "admin@cloudgreen.test", password: "admin123", role: "admin" }),
     });
     const json = await res.json();
     setAuthToken(json.token || "");
     setAuthMsg(json.token ? "Admin token ready." : "Login failed.");
   };
 
-  const trackAnalytics = async () => {
-    await apiFetch("/api/telemetry/data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: "dashboard_view",
-        distinctId: "prod-admin-01",
-        properties: { section: "phase4", ts: new Date().toISOString() },
-      }),
-    });
-    const summary = await fetchJson<AnalyticsSummary>("/api/telemetry/summary");
-    setAnalyticsRes(`Total events: ${summary.totalEvents}, dashboard_view: ${summary.eventCounts.dashboard_view || 0}`);
+  const trackAnalytics = async (evtName: string = "dashboard_view", props: any = {}) => {
+    try {
+      await apiFetch("/api/telemetry/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: evtName,
+          distinctId: "prod-admin-01",
+          properties: { ...props, section: "production", ts: new Date().toISOString() },
+        }),
+      });
+      const summary = await fetchJson<AnalyticsSummary>("/api/telemetry/summary");
+      setAnalyticsRes(`Total events: ${summary.totalEvents}, latest: ${evtName}`);
+    } catch (e) {
+      console.warn("Telemetry offline");
+    }
   };
 
   const runGraphQLCheck = async () => {
-    const res = await fetch(GQL_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: "{ carbonSignal { intensity mode source } tokenBalances { entries { account balance } } executiveOverview { suppliers openIncidents slaStatus } }",
-      }),
-    });
-    const json = await res.json();
-    if (json.errors) {
-      setGqlRes(`GraphQL error: ${json.errors[0]?.message || "unknown"}`);
-      return;
+    setGqlRes("Executing query...");
+    try {
+      const res = await fetch(GQL_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "{ carbonSignal { intensity mode source } tokenBalances { entries { account balance } } executiveOverview { suppliers openIncidents slaStatus } }",
+        }),
+      });
+      const json = await res.json();
+      if (json.errors) {
+        setGqlRes(`GraphQL error: ${json.errors[0]?.message || "unknown"}`);
+        return;
+      }
+      setGqlRaw(json.data);
+      setGqlRes(`Success: Received ${json.data.tokenBalances.entries.length} wallet records.`);
+      await trackAnalytics("graphql_query", { operation: "HealthCheck" });
+    } catch (e: any) {
+      setGqlRes(`GraphQL disconnected: ${e.message}`);
     }
-    const signal = json.data.carbonSignal;
-    setGqlRes(`GraphQL OK: mode=${signal.mode}, intensity=${signal.intensity}, balances=${json.data.tokenBalances.entries.length}`);
   };
 
   return (
@@ -570,28 +508,6 @@ function App() {
         </section>
 
         <section className="card">
-          <h2>Zero-Knowledge Proofs</h2>
-          <p className="muted">Circom/SnarkJS range proof generation & verification.</p>
-          <div className="row">
-            <input type="number" value={emissionKg} onChange={(e) => setEmissionKg(Number(e.target.value))} placeholder="Emission (kg)" />
-            <input type="number" value={minKg} onChange={(e) => setMinKg(Number(e.target.value))} placeholder="Min kg" />
-            <input type="number" value={maxKg} onChange={(e) => setMaxKg(Number(e.target.value))} placeholder="Max kg" />
-          </div>
-          <div className="row">
-            <button onClick={generateZkProof}>Generate ZK Proof</button>
-            <button onClick={verifyZkProof} disabled={!zk}>Verify ZK Proof</button>
-          </div>
-          {zk ? (
-            <div className="kv">
-              <p>OK: <strong>{zk.rangeOk ? "YES" : "NO"}</strong></p>
-              <p>Commit: <span className="mono">{zk.commitment.slice(0, 16)}...</span></p>
-              <p>Proof: <span className="mono">{zk.proof.slice(0, 16)}...</span></p>
-            </div>
-          ) : null}
-          {zkVerify ? <p className="error" style={{ color: '#4aec74', background: 'rgba(46,160,67,0.1)', borderColor: 'rgba(46,160,67,0.2)' }}>{zkVerify}</p> : null}
-        </section>
-
-        <section className="card">
           <h2>Multi-Cloud Planner</h2>
           <p className="muted">Time-shifted routing using OpenTofu logic.</p>
           <div className="row">
@@ -607,18 +523,6 @@ function App() {
               <p className="mono">{routing.reason}</p>
             </div>
           ) : null}
-        </section>
-
-        {/* Enterprise */}
-        <section className="card">
-          <h2>Scope 3 Credentials</h2>
-          <p className="muted">Issue verifiable credentials stored on local protocol.</p>
-          <div className="row">
-            <button onClick={issueCredential}>Issue Official VC </button>
-            <input value={hashInput} onChange={(e) => setHashInput(e.target.value)} placeholder="0xHash..." />
-            <button onClick={verifyCredential}>Verify Hash</button>
-          </div>
-          {verifyResult ? <p className="mono">{verifyResult}</p> : null}
         </section>
 
         <section className="card">
@@ -649,13 +553,25 @@ function App() {
           <h2>Supply Chain Graph</h2>
           <p className="muted">Neo4j-powered supplier analysis.</p>
           <div className="row">
-            <button onClick={onboardSupplier}>Onboard Supplier</button>
-            <button onClick={uploadCsv}>Upload Log</button>
+            {!isAddingSupplier ? (
+              <button onClick={() => setIsAddingSupplier(true)}>Onboard Supplier</button>
+            ) : (
+              <button onClick={() => setIsAddingSupplier(false)} className="outline">Cancel</button>
+            )}
             <button onClick={loadGraphExposure}>Exposure Query</button>
           </div>
+          {isAddingSupplier && (
+            <div className="form-group" style={{ marginTop: '16px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px' }}>
+              <div className="column" style={{ gap: '8px' }}>
+                <input value={newSupName} onChange={e => setNewSupName(e.target.value)} placeholder="Supplier Name (e.g. Foxconn)" />
+                <input value={newSupEmail} onChange={e => setNewSupEmail(e.target.value)} placeholder="Contact Email" />
+                <input value={newSupCountry} onChange={e => setNewSupCountry(e.target.value)} placeholder="Country Code (e.g. TW)" />
+                <button onClick={onboardSupplier} style={{ width: '100%', marginTop: '8px' }}>Submit Onboarding</button>
+              </div>
+            </div>
+          )}
           <div className="kv">
-            {supplierRes ? <p>{supplierRes}</p> : null}
-            {csvRes ? <p>{csvRes}</p> : null}
+            {supplierRes ? <p className="mono" style={{ fontSize: '13px', color: supplierRes.startsWith('Error') ? 'var(--error)' : '#4aec74' }}>{supplierRes}</p> : null}
             {graphRes ? <p>{graphRes}</p> : null}
           </div>
         </section>
@@ -668,34 +584,48 @@ function App() {
             <button onClick={() => refetchOverview()}>Sync KPIs</button>
           </div>
           {incidentRes ? <p className="mono" style={{ color: '#f85149' }}>{incidentRes}</p> : null}
-          {execOverview ? (
+          {execOverview && (
             <div className="kv">
               <p>Suppliers: <strong>{execOverview.suppliers}</strong> | Rows: <strong>{execOverview.uploadedEmissionRows}</strong></p>
               <p>Incidents: <strong>{execOverview.openIncidents}</strong> | SLA: <strong>{execOverview.slaStatus}</strong></p>
             </div>
-          ) : null}
+          )}
         </section>
 
         {/* Ecosystem */}
         <section className="card" style={{ gridColumn: '1 / -1' }}>
-          <h2>Carbon Decentralized Exchange</h2>
-          <p className="muted">Marketplace token minting and settlement.</p>
+          <h2>GreenCredit Token Ledger</h2>
+          <p className="muted">GCRD tokens are minted automatically when CSV data passes ZK verification. Use this panel to transfer tokens between wallets.</p>
           <div className="row">
             <input value={authToken} onChange={(e) => setAuthToken(e.target.value)} placeholder="Bearer token" style={{ maxWidth: '300px' }} />
             <button onClick={loginAsAdmin}>Authenticate as Admin</button>
             {authMsg ? <span className="mono">{authMsg}</span> : null}
           </div>
           <hr style={{ width: '100%', borderColor: 'rgba(255,255,255,0.05)', margin: '8px 0' }} />
-          <div className="row">
-            <input value={mintAccount} onChange={(e) => setMintAccount(e.target.value)} placeholder="Wallet" />
-            <input type="number" value={mintAmount} onChange={(e) => setMintAmount(Number(e.target.value))} />
-            <button onClick={mintToken}>Mint Tokens</button>
-          </div>
-          <div className="row">
-            <input value={transferFrom} onChange={(e) => setTransferFrom(e.target.value)} placeholder="From" />
-            <input value={transferTo} onChange={(e) => setTransferTo(e.target.value)} placeholder="To" />
-            <input type="number" value={transferAmount} onChange={(e) => setTransferAmount(Number(e.target.value))} />
-            <button onClick={transferToken}>Transfer Tokens</button>
+          <div className="row" style={{ alignItems: 'flex-end' }}>
+            <div className="column">
+              <label className="muted" style={{ fontSize: '0.75rem', marginBottom: '4px', display: 'block' }}>
+                From Wallet (Signer-Locked | Balance: <strong>{currentFromBalance} GCRD</strong>)
+              </label>
+              <input value={transferFrom} readOnly style={{ opacity: 0.6, cursor: 'not-allowed', background: 'rgba(255,255,255,0.05)' }} />
+            </div>
+            <div className="column">
+              <label className="muted" style={{ fontSize: '0.75rem', marginBottom: '4px', display: 'block' }}>Recipient (Strict EVM Address)</label>
+              <input value={transferTo} onChange={(e) => setTransferTo(e.target.value)} placeholder="0x..." />
+            </div>
+            <div className="column">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label className="muted" style={{ fontSize: '0.75rem', display: 'block' }}>Amount</label>
+                <button 
+                  onClick={() => setTransferAmount(currentFromBalance)} 
+                  style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)' }}
+                >
+                  Max
+                </button>
+              </div>
+              <input type="number" value={transferAmount} onChange={(e) => setTransferAmount(Number(e.target.value))} />
+            </div>
+            <button onClick={transferToken} style={{ height: '38px', alignSelf: 'flex-end' }}>Transfer Tokens</button>
           </div>
           {tokenRes ? <div className="kv"><p className="mono">{tokenRes}</p></div> : null}
         </section>
@@ -706,14 +636,19 @@ function App() {
           <div className="row">
             <button onClick={runGraphQLCheck}>Run Health Query</button>
           </div>
-          {gqlRes ? <div className="kv"><p className="mono">{gqlRes}</p></div> : null}
+          {gqlRes ? <div className="kv"><p className="mono" style={{ color: '#4aec74' }}>{gqlRes}</p></div> : null}
+          {gqlRaw && (
+            <pre className="textarea" style={{ fontSize: '11px', marginTop: '8px', maxHeight: '150px', overflow: 'auto' }}>
+              {JSON.stringify(gqlRaw, null, 2)}
+            </pre>
+          )}
         </section>
 
         <section className="card">
           <h2>Telemetry Platform</h2>
           <p className="muted">Analytics tracking component tests.</p>
           <div className="row">
-            <button onClick={trackAnalytics}>Emit Dashboard Event</button>
+            <button onClick={() => trackAnalytics("dashboard_event_pulse", { manual: true })}>Emit Dashboard Event</button>
           </div>
           {analyticsRes ? <div className="kv"><p className="mono">{analyticsRes}</p></div> : null}
         </section>

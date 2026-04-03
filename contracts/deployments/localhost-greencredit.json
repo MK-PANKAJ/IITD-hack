@@ -1,0 +1,8 @@
+{
+  "network": "localhost",
+  "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "blockNumber": 2,
+  "deployedAt": "2026-04-03T17:21:57.806Z",
+  "transactionHash": "0x939b99eec8bcb3387ffb0b6802587da5ff4101fdab6b8a29cc4d8e2fcb5a50c4"
+}
