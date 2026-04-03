@@ -3,6 +3,7 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config(); // Fallback to local .env if root not found
 const Fastify = require("fastify");
 const cors = require("@fastify/cors");
+const multipart = require("@fastify/multipart");
 const axios = require("axios");
 const { z } = require("zod");
 const { randomUUID } = require("crypto");
@@ -43,7 +44,7 @@ const greenCreditContract = new ethers.Contract(
   signer
 );
 
-const app = Fastify({ logger: false });
+const app = Fastify({ logger: true });
 const PORT = Number(process.env.PORT || 8787);
 
 // Strict EVM Address Validation (User Recommendation)
@@ -148,6 +149,10 @@ app.register(cors, {
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+});
+
+app.register(multipart, { 
+  limits: { fileSize: 10 * 1024 * 1024 } 
 });
 
 app.get("/api/health", async () => ({ ok: true, service: "cloudgreen-os-mvp" }));
@@ -535,30 +540,92 @@ const supplierSchema = z.object({
   country: z.string().min(2),
 });
 
+app.get("/api/suppliers/onboard", async (request, reply) => {
+  const { rows } = await pg.query("SELECT * FROM suppliers ORDER BY created_at DESC");
+  return rows;
+});
+
 app.post("/api/suppliers/onboard", async (request, reply) => {
   const parsed = supplierSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "Invalid payload", details: parsed.error.issues });
   const supplier = { id: `sup-${randomUUID()}`, createdAt: new Date().toISOString(), status: "active", ...parsed.data };
   
-  // 1. Relational Store
-  await pg.query(
-    "INSERT INTO suppliers(id, name, email, country, status, created_at) VALUES($1, $2, $3, $4, $5, $6)",
-    [supplier.id, supplier.name, supplier.email, supplier.country, supplier.status, supplier.createdAt]
-  );
-
-  // 2. Graph Store (Supply Chain growth)
-  const session = neo.session();
   try {
-    await session.run(`
-      MERGE (o:Organization {name: 'CloudGreen'})
-      MERGE (s:Supplier {id: $id, name: $name, country: $country})
-      MERGE (o)-[:SUPPLIED_BY]->(s)
-    `, { id: supplier.id, name: supplier.name, country: supplier.country });
-  } finally {
-    await session.close();
+    // 1. Relational Store
+    await pg.query(
+      "INSERT INTO suppliers(id, name, email, country, status, created_at) VALUES($1, $2, $3, $4, $5, $6)",
+      [supplier.id, supplier.name, supplier.email, supplier.country, supplier.status, supplier.createdAt]
+    );
+
+    // 2. Graph Store (Supply Chain growth)
+    const session = neo.session();
+    try {
+      await session.run(`
+        MERGE (o:Organization {name: 'CloudGreen'})
+        MERGE (s:Supplier {id: $id, name: $name, country: $country})
+        MERGE (o)-[:SUPPLIED_BY]->(s)
+      `, { id: supplier.id, name: supplier.name, country: supplier.country });
+    } finally {
+      await session.close();
+    }
+
+    return supplier;
+  } catch (err) {
+    console.error("Supplier onboarding failed:", err);
+    return reply.code(400).send({ 
+      error: "Onboarding failed", 
+      details: err.message || "Database or graph service error"
+    });
+  }
+});
+
+app.post("/api/graph/upload-csv", async (request, reply) => {
+  const data = await request.file();
+  if (!data) return reply.code(400).send({ error: "No file provided" });
+
+  const buffer = await data.toBuffer();
+  const content = buffer.toString("utf-8");
+  const lines = content.split("\n").filter(l => l.trim() !== "");
+  const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+  
+  // Expecting: supplier_name, scope, emissions_kg
+  const processed = [];
+  const batchId = `batch-${randomUUID()}`;
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(",").map(v => v.trim());
+    if (values.length < 3) continue;
+
+    const row = {
+      supplierName: values[0],
+      scope: values[1],
+      emissionsKg: parseFloat(values[2])
+    };
+
+    if (isNaN(row.emissionsKg)) continue;
+
+    // 1. Relational Update
+    await pg.query(
+      "INSERT INTO supplier_emissions(id, batch_id, supplier_name, scope, emissions_kg) VALUES($1, $2, $3, $4, $5)",
+      [`em-${randomUUID()}`, batchId, row.supplierName, row.scope, row.emissionsKg]
+    );
+
+    // 2. Graph Update
+    const session = neo.session();
+    try {
+      await session.run(`
+        MERGE (s:Supplier {name: $name})
+        CREATE (e:Emissions {id: $id, emissionsKg: $kg, scope: $scope, ts: datetime()})
+        MERGE (s)-[:REPORTED {batchId: $batchId}]->(e)
+      `, { name: row.supplierName, id: `em-${randomUUID()}`, kg: row.emissionsKg, scope: row.scope, batchId });
+    } finally {
+      await session.close();
+    }
+
+    processed.push(row);
   }
 
-  return supplier;
+  return { status: "success", batchId, processed: processed.length };
 });
 
 // ── Master Pipeline Orchestrator (Production Integration) ─────────────

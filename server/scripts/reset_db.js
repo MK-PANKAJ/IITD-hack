@@ -3,21 +3,26 @@ const path = require('path');
 const { pg, neo } = require('../services');
 
 async function resetPostgres() {
-  console.log('--- Resetting PostgreSQL ---');
+  console.log('--- Resetting PostgreSQL (Surgical) ---');
   try {
-    // 1. Drop public schema to kill everything
-    await pg.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    console.log('Public schema dropped and recreated.');
+    // 1. Truncate application tables instead of dropping schema
+    // This preserves Keycloak internal tables
+    const tables = [
+      'suppliers',
+      'supplier_emissions',
+      'verifiable_credentials',
+      'trades',
+      'orders',
+      'incidents',
+      'token_balances',
+      'analytics_events'
+    ];
+    
+    console.log(`Truncating tables: ${tables.join(', ')}`);
+    await pg.query(`TRUNCATE TABLE ${tables.join(', ')} RESTART IDENTITY CASCADE`);
+    console.log('Application tables truncated.');
 
-    // 2. Read init-schema.sql
-    const sqlPath = path.join(__dirname, '../../infra/data-system/postgresql/init-schema.sql');
-    const sql = fs.readFileSync(sqlPath, 'utf8');
-
-    // 3. Execute SQL
-    await pg.query(sql);
-    console.log('Schema re-initialized from init-schema.sql.');
-
-    // 4. Seed baseline data for production wallet
+    // 2. Seed baseline data for production wallet
     const signerAddress = process.env.BLOCKCHAIN_SIGNER_KEY_ADDRESS || "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"; // Hardhat #0
     await pg.query(
       'INSERT INTO token_balances (account, balance) VALUES ($1, $2)',

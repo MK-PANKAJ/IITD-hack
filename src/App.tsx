@@ -5,8 +5,6 @@ import { CarbonAwareSdk } from "./services/carbon";
 import "./index.css";
 
 // ── API Base URL ──────────────────────────────────────────────────────
-// Production: VITE_API_BASE_URL from .env.production (e.g., https://api.cloudgreen.dev)
-// Development: undefined → "" (empty string, so Vite proxy handles /api → localhost:8787)
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, "") ?? "";
 const GQL_URL = (import.meta.env.VITE_GRAPHQL_URL as string | undefined) ?? "http://localhost:4000/graphql";
 
@@ -15,7 +13,15 @@ const apiFetch = (url: string, init?: RequestInit) => {
   return fetch(`${API_BASE}${url}`, init);
 };
 
+const TRANSFER_FROM = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
+/** SHA-256 Digest for Verifiable Data Integrity */
+async function sha256(message: string) {
+  const msgUint8 = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 type Dashboard = {
   signal: { intensity: number; mode: string; source: string; ts: string };
@@ -74,7 +80,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json();
 }
 
-function App() {
+export default function App() {
   const [authToken, setAuthToken] = useState<string>("");
   const [authMsg, setAuthMsg] = useState<string>("");
 
@@ -87,12 +93,9 @@ function App() {
   const [routing, setRouting] = useState<RoutingPlan | null>(null);
   const [routingErr, setRoutingErr] = useState<string | null>(null);
 
-  // Default to Signer (Hardhat #0) as per user confirmation
-  const [transferFrom, setTransferFrom] = useState("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
   const [transferTo, setTransferTo] = useState("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"); // Hardhat #1
   const [transferAmount, setTransferAmount] = useState(0);
   const [tokenRes, setTokenRes] = useState("");
-
 
   const [csrdOrg, setCsrdOrg] = useState("Global Manufacturing Corp");
   const [csrd, setCsrd] = useState<CsrdReport | null>(null);
@@ -108,6 +111,8 @@ function App() {
   const [analyticsRes, setAnalyticsRes] = useState("");
   const [gqlRes, setGqlRes] = useState("");
   const [gqlRaw, setGqlRaw] = useState<any>(null);
+
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data, refetch, isLoading } = useQuery({
     queryKey: ["dashboard"],
@@ -127,7 +132,7 @@ function App() {
     refetchInterval: 10000,
   });
 
-  const currentFromBalance = tokenBalances?.balances[transferFrom] || 0;
+  const currentFromBalance = tokenBalances?.balances[TRANSFER_FROM] || 0;
 
   const [gridIntensity, setGridIntensity] = useState<number>(0);
   const [isDirty, setIsDirty] = useState<boolean>(false);
@@ -272,6 +277,74 @@ function App() {
     setGraphRes(`Top exposure: ${top.name} (${top.totalKg} kgCO2e, risk=${top.risk}), suppliers=${json.totalSuppliers}`);
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setGraphRes("Reading CSV and calculating integrity hash...");
+
+    try {
+      const csvText = await file.text();
+      const vcHash = await sha256(csvText);
+      
+      // Calculate Total Emissions for ZK-Proof Input
+      const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      lines.shift(); // skip header
+      const totalEmissions = lines.reduce((sum, line) => {
+        const parts = line.split(",");
+        const val = Number(parts[2]);
+        return sum + (isNaN(val) ? 0 : val);
+      }, 0);
+
+      setGraphRes(`Generating ZK-Proof for ${Math.round(totalEmissions)} kgCO2e...`);
+      
+      // Step 1: Generate ZK-Proof (In production, this happens on supplier side)
+      const proofRes = await apiFetch("/api/utils/generate-zk-proof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emissionKg: totalEmissions }),
+      });
+      const proofData = await proofRes.json();
+      if (!proofRes.ok) throw new Error(proofData.error || "Proof generation failed");
+
+      setGraphRes("Submitting Verifiable Ingestion Request...");
+
+      // Step 2: Submit to Verifiable Pipeline
+      const ingestRes = await apiFetch("/api/suppliers/emissions/upload", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": authToken ? `Bearer ${authToken}` : ""
+        },
+        body: JSON.stringify({ 
+          csv: csvText, 
+          vcHash, 
+          proof: {
+            proof: proofData.proof,
+            publicSignals: proofData.publicSignals,
+            totalEmissionKg: proofData.totalEmissionKg
+          }
+        }),
+      });
+
+      const json = await ingestRes.json();
+      if (!ingestRes.ok) {
+        setGraphRes(`Verification Failed: ${json.error || "Cryptographic rejection"}`);
+      } else {
+        setGraphRes(`Verified! Batch ${json.batchId.slice(0, 8)}... integrated with ${json.credentials.length} VCs.`);
+        await loadGraphExposure();
+        await trackAnalytics("verifiable_csv_uploaded", { batchId: json.batchId });
+      }
+    } catch (err: any) {
+      setGraphRes(`System Error: ${err.message}`);
+    } finally {
+      setIsUploading(false);
+      // Reset input so user can re-upload same file
+      e.target.value = "";
+    }
+  };
+
   const createIncident = async () => {
     if (!authToken) {
       setIncidentRes("Error: Authentication required to trigger alerts.");
@@ -304,13 +377,13 @@ function App() {
 
     setTokenRes("Initiating on-chain transfer...");
     try {
-      const res = await apiFetch("/api/token/transfer", {
+      const res = await apiFetch("/api/tokens/transfer", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ from: transferFrom, to: transferTo, amount: transferAmount }),
+        body: JSON.stringify({
+          from: TRANSFER_FROM,
+          to: transferTo,
+          amount: transferAmount,
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -378,18 +451,15 @@ function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div>
-          <h1>CloudGreen OS</h1>
-          <p>Zero-Cost Sustainability</p>
+      <header className="dashboard-header">
+        <div className="header-brand">
+          <div className="brand-dot"></div>
+          <div>
+            <h1>CloudGreen OS</h1>
+            <p className="muted">Zero-Cost Sustainability Terminal</p>
+          </div>
         </div>
-        <nav className="nav-links">
-          <div className="nav-link">01. Foundation</div>
-          <div className="nav-link">02. Intelligence</div>
-          <div className="nav-link">03. Enterprise</div>
-          <div className="nav-link">04. Ecosystem</div>
-        </nav>
-      </aside>
+      </header>
 
       <main className="main-content">
         {/* Foundation & Telemetry */}
@@ -464,6 +534,10 @@ function App() {
 
           {pipeLog.length > 0 && (
             <div className="textarea" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '120px' }}>
+                  <div className="status-row">
+                    <span>Source:</span>
+                    <span className="mono">{TRANSFER_FROM.slice(0, 10)}...</span>
+                  </div>
               {pipeLog.map((log, i) => (
                 <div key={i}>
                   <span className="muted">[{log.ts}]</span>{' '}
@@ -558,6 +632,19 @@ function App() {
             ) : (
               <button onClick={() => setIsAddingSupplier(false)} className="outline">Cancel</button>
             )}
+            <input
+              type="file"
+              id="csv-upload"
+              accept=".csv"
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+            />
+            <button 
+              onClick={() => document.getElementById('csv-upload')?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? "Processing..." : "Upload Intensity CSV"}
+            </button>
             <button onClick={loadGraphExposure}>Exposure Query</button>
           </div>
           {isAddingSupplier && (
@@ -607,7 +694,7 @@ function App() {
               <label className="muted" style={{ fontSize: '0.75rem', marginBottom: '4px', display: 'block' }}>
                 From Wallet (Signer-Locked | Balance: <strong>{currentFromBalance} GCRD</strong>)
               </label>
-              <input value={transferFrom} readOnly style={{ opacity: 0.6, cursor: 'not-allowed', background: 'rgba(255,255,255,0.05)' }} />
+              <input value={TRANSFER_FROM} readOnly style={{ opacity: 0.6, cursor: 'not-allowed', background: 'rgba(255,255,255,0.05)' }} />
             </div>
             <div className="column">
               <label className="muted" style={{ fontSize: '0.75rem', marginBottom: '4px', display: 'block' }}>Recipient (Strict EVM Address)</label>
@@ -656,5 +743,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

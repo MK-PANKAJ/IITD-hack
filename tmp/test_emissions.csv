@@ -1,0 +1,4 @@
+supplier_name,scope,emissions_kg
+Foxconn,scope3,1500.5
+TSMC,scope2,850.2
+Intel,scope1,120.0
