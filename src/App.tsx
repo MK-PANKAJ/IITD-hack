@@ -285,7 +285,22 @@ export default function App() {
     setGraphRes("Reading CSV and calculating integrity hash...");
 
     try {
-      const csvText = await file.text();
+      const fileText = await file.text();
+      const rawLines = fileText.trim().split(/\r?\n/);
+      const lastLine = rawLines[rawLines.length - 1];
+
+      let signature = "";
+      let csvText = fileText;
+
+      if (lastLine.startsWith("# SIGNATURE:")) {
+        signature = lastLine.replace("# SIGNATURE:", "").trim();
+        csvText = rawLines.slice(0, -1).join("\n").trim();
+      } else {
+        setGraphRes("Error: CSRD CSV file is missing the integrated '# SIGNATURE: <hex>' validation line at the bottom.");
+        setIsUploading(false);
+        return;
+      }
+
       const vcHash = await sha256(csvText);
       
       // Calculate Total Emissions for ZK-Proof Input
@@ -300,7 +315,7 @@ export default function App() {
       setGraphRes(`Generating ZK-Proof for ${Math.round(totalEmissions)} kgCO2e...`);
       
       // Step 1: Generate ZK-Proof (In production, this happens on supplier side)
-      const proofRes = await apiFetch("/api/utils/generate-zk-proof", {
+      const proofRes = await apiFetch("/api/zk/proof", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emissionKg: totalEmissions }),
@@ -308,7 +323,7 @@ export default function App() {
       const proofData = await proofRes.json();
       if (!proofRes.ok) throw new Error(proofData.error || "Proof generation failed");
 
-      setGraphRes("Submitting Verifiable Ingestion Request...");
+      setGraphRes("Submitting Verifiable Ingestion Request with Intrinsic CSV Signature...");
 
       // Step 2: Submit to Verifiable Pipeline
       const ingestRes = await apiFetch("/api/suppliers/emissions/upload", {
@@ -320,6 +335,7 @@ export default function App() {
         body: JSON.stringify({ 
           csv: csvText, 
           vcHash, 
+          signature,
           proof: {
             proof: proofData.proof,
             publicSignals: proofData.publicSignals,

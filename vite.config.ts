@@ -7,8 +7,13 @@ export default defineConfig({
   server: {
     // This allows the Cloudflare Tunnel URL to connect to your local server
     allowedHosts: true,
+    host: '127.0.0.1',
     proxy: {
-      "/api": "http://localhost:8787",
+      '/api': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })

@@ -9,15 +9,11 @@ const { z } = require("zod");
 const { randomUUID } = require("crypto");
 const crypto = require("crypto");
 
-// Trusted Auditor Public Key (In-Memory for Demo)
-const TRUSTED_AUDITOR_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyq7mI1e8q+7ZBvaThYDn
-wg5/nBo/7/3IDeFEe9ZBvaThYDnwg5/nBo/7/3IDeFEe9ZBvaThYDnwg5/nBo/7/
-3IDeFEe9ZBvaThYDnwg5/nBo/7/3IDeFEe9ZBvaThYDnwg5/nBo/7/3IDeFEe9ZB
-vaThYDnwg5/nBo/7/3IDeFEe9ZBvaThYDnwg5/nBo/7/3IDeFEe9ZBvaThYDnwg5
-/nBo/7/3IDeFEe9ZBvaThYDnwg5/nBo/7/3IDeFEe9ZBvaThYDnwg5/nBo/7/3ID
-eFEe9ZBvaThYDnwg5/nBo/7/3IDeFEe9ZBvaThYDnwg5/nBo/7/3IDeFEe9ZBg==
------END PUBLIC KEY-----`;
+// Trusted Auditor Public Key (Production)
+if (!process.env.TRUSTED_AUDITOR_PUBLIC_KEY) {
+  console.warn("WARNING: TRUSTED_AUDITOR_PUBLIC_KEY not configured. Sig-checks will fail.");
+}
+const TRUSTED_AUDITOR_PUBLIC_KEY = process.env.TRUSTED_AUDITOR_PUBLIC_KEY ? process.env.TRUSTED_AUDITOR_PUBLIC_KEY.replace(/\\n/g, '\n') : "";
 
 const { createServer } = require("node:http");
 const { createYoga, createSchema } = require("graphql-yoga");
@@ -702,18 +698,16 @@ app.post("/api/suppliers/emissions/upload", async (request, reply) => {
 
   // 3. Digital Signature Verification (Provenance Check)
   const { signature } = request.body;
-  if (signature) {
-    const verify = crypto.createVerify("SHA256");
-    verify.update(csvText);
-    verify.end();
-    const isVerified = verify.verify(TRUSTED_AUDITOR_PUBLIC_KEY, signature, "hex");
-    if (!isVerified) {
-      return reply.code(401).send({ error: "Digital Seal Broken: Signature does not match CSV content or originates from an untrusted source." });
-    }
-  } else {
-    // In a strict production environment, we would reject missing signatures.
-    // For this demo, we'll log a warning but proceed if other checks pass.
-    console.warn("Upload proceeding without Digital Signature (Verifiable Data Source).");
+  if (!signature) {
+    return reply.code(401).send({ error: "Digital signature is strictly required for verifiable provenance." });
+  }
+
+  const verify = crypto.createVerify("SHA256");
+  verify.update(csvText);
+  verify.end();
+  const isVerified = verify.verify(TRUSTED_AUDITOR_PUBLIC_KEY, signature, "hex");
+  if (!isVerified) {
+    return reply.code(401).send({ error: "Digital Seal Broken: Signature does not match CSV content or originates from an untrusted source." });
   }
 
   // 4. Persistence to Ledger (Postgres)

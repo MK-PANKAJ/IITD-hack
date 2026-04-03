@@ -60,32 +60,8 @@ async function main() {
   console.log(`      Total Supply:  ${hre.ethers.formatEther(totalSupply)} GCR`);
   console.log(`      Yearly Cap:    ${hre.ethers.formatEther(yearlyMintCap)} GCR per minter`);
 
-  // ── Demo: Mint credits for a test reduction event ──────────────────
-  console.log("\n[4/5] Minting demo credits (100 kgCO₂e reduction)...");
-
-  const eventId = hre.ethers.keccak256(
-    hre.ethers.toUtf8Bytes(`demo-reduction-${Date.now()}`)
-  );
-
-  const mintTx = await greenCredit.mintForReduction(
-    eventId,
-    deployer.address,
-    100, // 100 kgCO₂e
-    "ipfs://QmDemoCloudGreenReductionEvidence" // Placeholder IPFS URI
-  );
-  await mintTx.wait();
-
-  const newSupply = await greenCredit.totalSupply();
-  const deployerBalance = await greenCredit.balanceOf(deployer.address);
-  const totalReduction = await greenCredit.totalReductionKg();
-
-  console.log(`      ✓ Minted 100 GCR to deployer`);
-  console.log(`      Total Supply:    ${hre.ethers.formatEther(newSupply)} GCR`);
-  console.log(`      Deployer Bal:    ${hre.ethers.formatEther(deployerBalance)} GCR`);
-  console.log(`      Total Reduction: ${totalReduction} kgCO₂e`);
-
   // ── Output summary ────────────────────────────────────────────────
-  console.log("\n[5/5] Deployment complete!");
+  console.log("\n[4/4] Deployment complete!");
   console.log("");
   console.log("╔══════════════════════════════════════════════════════════╗");
   console.log("║  Deployment Summary                                     ║");

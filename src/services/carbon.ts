@@ -32,13 +32,8 @@ export class CarbonAwareSdk {
         time: new Date().toISOString()
       }];
     } catch (error) {
-      console.warn("Carbon SDK Proxy Error:", error);
-      // Fallback for demo purposes if the API is unreachable
-      return [{
-        location: location,
-        rating: 250, // Default to a "Cleanish" value
-        time: new Date().toISOString()
-      }];
+      console.error("Carbon SDK Proxy Error:", error);
+      throw new Error(`Critical: CarbonAPI unreachable. Cannot reliably schedule ${location} workloads.`);
     }
   }
 }

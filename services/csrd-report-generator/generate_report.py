@@ -67,67 +67,6 @@ def render_pdf(data: CSRDReportData, output_path: Path) -> Path:
     return output_path
 
 
-def generate_demo_data(organization: str, year: int) -> CSRDReportData:
-    """
-    Generate realistic demo data for testing without a database connection.
-    Used when --demo flag is set or PostgreSQL is unreachable.
-    """
-    scope = ScopeBreakdown(
-        scope1_kg=Decimal("4520.50"),
-        scope2_kg=Decimal("12890.75"),
-        scope3_kg=Decimal("38450.00"),
-    )
-
-    top_emitters = [
-        SupplierExposure(
-            name="SteelCorp GmbH",
-            total_emissions_kg=Decimal("18500.00"),
-            scope_count=3,
-            risk_class=RiskClass.MEDIUM,
-        ),
-        SupplierExposure(
-            name="LogiTrans EU",
-            total_emissions_kg=Decimal("12300.00"),
-            scope_count=2,
-            risk_class=RiskClass.MEDIUM,
-        ),
-        SupplierExposure(
-            name="ChemWorks International",
-            total_emissions_kg=Decimal("8900.00"),
-            scope_count=2,
-            risk_class=RiskClass.MEDIUM,
-        ),
-        SupplierExposure(
-            name="PackageSolutions Ltd",
-            total_emissions_kg=Decimal("4200.00"),
-            scope_count=1,
-            risk_class=RiskClass.LOW,
-        ),
-        SupplierExposure(
-            name="GreenEnergy Solar",
-            total_emissions_kg=Decimal("1250.00"),
-            scope_count=1,
-            risk_class=RiskClass.LOW,
-        ),
-    ]
-
-    return CSRDReportData(
-        organization=organization,
-        reporting_year=year,
-        scope_breakdown=scope,
-        supplier_count=24,
-        emission_record_count=156,
-        top_emitters=top_emitters,
-        credential_count=18,
-        open_incidents=2,
-        total_incidents=7,
-        total_token_balance=Decimal("15420.50"),
-        active_orders=5,
-        risk_class=classify_risk(scope.total_kg),
-        csrd_compliance_score=72.5,
-    )
-
-
 @click.command()
 @click.option(
     "--org",
@@ -145,13 +84,7 @@ def generate_demo_data(organization: str, year: int) -> CSRDReportData:
     default="reports",
     help="Output directory for the generated PDF.",
 )
-@click.option(
-    "--demo",
-    is_flag=True,
-    default=False,
-    help="Use demo data instead of querying PostgreSQL.",
-)
-def main(org: str, year: int, output: str, demo: bool):
+def main(org: str, year: int, output: str):
     """Generate a CSRD-compliant sustainability report as PDF."""
 
     print(f"╔══════════════════════════════════════════════════════════╗")
@@ -159,22 +92,18 @@ def main(org: str, year: int, output: str, demo: bool):
     print(f"╠══════════════════════════════════════════════════════════╣")
     print(f"║  Organization: {org:<41}║")
     print(f"║  Year:         {year:<41}║")
-    print(f"║  Mode:         {'Demo Data' if demo else 'PostgreSQL':<41}║")
+    print(f"║  Mode:         {'PostgreSQL':<41}║")
     print(f"╚══════════════════════════════════════════════════════════╝")
     print()
 
-    # Fetch or generate data
-    if demo:
-        print("[1/3] Using demo data...")
-        data = generate_demo_data(org, year)
-    else:
-        print("[1/3] Fetching data from PostgreSQL...")
-        try:
-            data = fetch_csrd_data(organization=org, reporting_year=year)
-        except Exception as e:
-            print(f"\n  ⚠ Database connection failed: {e}")
-            print("  → Falling back to demo data.\n")
-            data = generate_demo_data(org, year)
+    print("[1/3] Fetching data from PostgreSQL...")
+    try:
+        data = fetch_csrd_data(organization=org, reporting_year=year)
+    except Exception as e:
+        print(f"\n  ⚠ CRITICAL: Database connection failed: {e}")
+        print("  → Aborting. CSRD Report requires verified PostgreSQL data.\n")
+        import sys
+        sys.exit(1)
 
     # Generate filename
     safe_org = org.lower().replace(" ", "-").replace("/", "-")[:30]
