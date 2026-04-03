@@ -1,0 +1,91 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - heading "CloudGreen OS" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Zero-Cost Sustainability
+    - navigation [ref=e8]:
+      - generic [ref=e9] [cursor=pointer]: 01. Foundation
+      - generic [ref=e10] [cursor=pointer]: 02. Intelligence
+      - generic [ref=e11] [cursor=pointer]: 03. Enterprise
+      - generic [ref=e12] [cursor=pointer]: 04. Ecosystem
+  - main [ref=e13]:
+    - generic [ref=e14]:
+      - heading "Live Carbon Status" [level=2] [ref=e15]: Live Carbon Status
+      - paragraph [ref=e17]: Synchronizing telemetry...
+    - generic [ref=e18]:
+      - heading "End-to-End Interconnected Workflow Log" [level=2] [ref=e19]
+      - paragraph [ref=e20]: L1 Trust → L3 Orchestrator → L4 Intelligence → L5 Token Reward
+      - button "Execute Automated Workflow" [ref=e22] [cursor=pointer]
+    - generic [ref=e23]:
+      - heading "GreenOps Advisor (AI)" [level=2] [ref=e24]
+      - paragraph [ref=e25]: Energy-aware code analysis using self-hosted LLM.
+      - textbox [ref=e26]: "for i in range(1000000): x = i*i y = x%97"
+      - generic [ref=e27]:
+        - button "Analyze Energy" [ref=e28] [cursor=pointer]
+        - button "Load Sample" [ref=e29] [cursor=pointer]
+    - generic [ref=e30]:
+      - heading "Zero-Knowledge Proofs" [level=2] [ref=e31]
+      - paragraph [ref=e32]: Circom/SnarkJS range proof generation & verification.
+      - generic [ref=e33]:
+        - spinbutton [ref=e34]: "250"
+        - spinbutton [ref=e35]: "100"
+        - spinbutton [ref=e36]: "400"
+      - generic [ref=e37]:
+        - button "Generate ZK Proof" [ref=e38] [cursor=pointer]
+        - button "Verify ZK Proof" [disabled]
+    - generic [ref=e39]:
+      - heading "Multi-Cloud Planner" [level=2] [ref=e40]
+      - paragraph [ref=e41]: Time-shifted routing using OpenTofu logic.
+      - generic [ref=e42]:
+        - textbox [ref=e43]: supplier-import
+        - button "Get Optimal Route" [ref=e44] [cursor=pointer]
+    - generic [ref=e45]:
+      - heading "Scope 3 Credentials" [level=2] [ref=e46]
+      - paragraph [ref=e47]: Issue verifiable credentials stored on local protocol.
+      - generic [ref=e48]:
+        - button "Issue Credential" [ref=e49] [cursor=pointer]
+        - textbox "0xHash..." [ref=e50]
+        - button "Verify Hash" [ref=e51] [cursor=pointer]
+    - generic [ref=e52]:
+      - heading "CSRD Compliance" [level=2] [ref=e53]
+      - paragraph [ref=e54]: Generate XBRL-validated corporate emission reports.
+      - generic [ref=e55]:
+        - textbox "Organization Name" [ref=e56]: CloudGreen Inc.
+        - button "Generate Report" [ref=e57] [cursor=pointer]
+    - generic [ref=e58]:
+      - heading "Supply Chain Graph" [level=2] [ref=e59]
+      - paragraph [ref=e60]: Neo4j-powered supplier analysis.
+      - generic [ref=e61]:
+        - button "Onboard Supplier" [ref=e62] [cursor=pointer]
+        - button "Upload Log" [ref=e63] [cursor=pointer]
+        - button "Exposure Query" [ref=e64] [cursor=pointer]
+    - generic [ref=e66]:
+      - heading "Executive KPIs" [level=2] [ref=e67]
+      - paragraph [ref=e68]: High-level telemetry and PagerDuty alerts.
+      - generic [ref=e69]:
+        - button "Trigger Alert" [ref=e70] [cursor=pointer]
+        - button "Sync KPIs" [ref=e71] [cursor=pointer]
+    - generic [ref=e72]:
+      - heading "Carbon Decentralized Exchange" [level=2] [ref=e73]
+      - paragraph [ref=e74]: Marketplace token minting and settlement.
+      - generic [ref=e75]:
+        - textbox "Bearer token" [ref=e76]
+        - button "Authenticate as Admin" [ref=e77] [cursor=pointer]
+      - separator [ref=e78]
+      - generic [ref=e79]:
+        - textbox "Wallet" [ref=e80]: org-treasury
+        - spinbutton [ref=e81]: "1000"
+        - button "Mint Tokens" [ref=e82] [cursor=pointer]
+      - generic [ref=e83]:
+        - textbox "From" [ref=e84]: org-treasury
+        - textbox "To" [ref=e85]: supplier-rewards
+        - spinbutton [ref=e86]: "100"
+        - button "Transfer Tokens" [ref=e87] [cursor=pointer]
+    - generic [ref=e88]:
+      - heading "GraphQL Hub" [level=2] [ref=e89]
+      - paragraph [ref=e90]: Execute federated queries across all layers.
+      - button "Run Health Query" [ref=e92] [cursor=pointer]
+    - generic [ref=e93]:
+      - heading "Telemetry Platform" [level=2] [ref=e94]
+      - paragraph [ref=e95]: Analytics tracking component tests.
+      - button "Emit Dashboard Event" [ref=e97] [cursor=pointer]

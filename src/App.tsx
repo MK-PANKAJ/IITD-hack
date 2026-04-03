@@ -106,7 +106,7 @@ function App() {
 
   // Phase 3 — CSRD & Enterprise
   const [csrd, setCsrd] = useState<CsrdReport | null>(null);
-  const [csrdOrg, setCsrdOrg] = useState("CloudGreen Demo Org");
+  const [csrdOrg, setCsrdOrg] = useState("Global Manufacturing Corp");
   const [supplierRes, setSupplierRes] = useState<string>("");
   const [csvRes, setCsvRes] = useState<string>("");
   const [graphRes, setGraphRes] = useState<string>("");
@@ -152,71 +152,33 @@ function App() {
 
   const runE2EPipeline = async () => {
     if (!authToken) {
-      setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Error: You must 'Authenticate as Admin' below before running the pipeline.", type: "error" }]);
+      setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Error: Authentication missing. Please authenticate as Admin below.", type: "error" }]);
       return;
     }
     setPipeRunning(true);
-    setPipeLog([]);
-    const log = (msg: string, type: "info" | "success" | "error" = "info") => {
-      setPipeLog(prev => [...prev, { ts: new Date().toISOString().split("T")[1].slice(0, -1), msg, type }]);
-    };
+    setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Initiating remote pipeline execution...", type: "info" }]);
 
     try {
-      log("Step 1: Supplier Submits Scope 3 Data...");
-      await new Promise(r => setTimeout(r, 600));
-      log("L1 Data Trust Layer: ZK-SNARK generated. Verifying claim without exposing raw data...", "info");
-
-      const zkRes = await apiFetch("/api/zk/proof", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emissionKg: 105, minKg: 50, maxKg: 200 }),
-      }).then(r => r.json());
-
-      const verifyRes = await apiFetch("/api/zk/verify", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commitment: zkRes.commitment, proof: zkRes.proof, emissionKg: 105, minKg: 50, maxKg: 200 })
-      }).then(r => r.json());
-
-      if (verifyRes.verified) {
-        log(`Anchored proof on Hyperledger Fabric. Commitment: ${zkRes.commitment.slice(0, 16)}...`, "success");
-      }
-
-      log("Step 2: CI/CD Deploys Workload & Checks Kafka Signal Bus...");
-      await new Promise(r => setTimeout(r, 600));
-      const mode = data?.signal.mode || "balanced";
-      const intensity = data?.signal.intensity || 0;
-      log(`Real-time grid Carbon Intensity is ${intensity}g/kWh (${mode.toUpperCase()}).`);
-
-      log("Step 3: L3 Orchestration check (Green Region Available?)...");
-      const routeRes = await fetchJson<RoutingPlan>(`/api/routing/plan?workload=batch-job`);
-      if (routeRes.mode === 'critical') {
-        log(`No green region available. Argo defers batch job until green window.`, "error");
-      } else {
-        log(`Yes! Karpenter provisions node in low-carbon region: ${routeRes.target.provider}/${routeRes.target.region}.`, "success");
-      }
-
-      log("Step 4: L4 Intelligence begins...", "info");
-      await new Promise(r => setTimeout(r, 600));
-      log("Kepler/OTel profiling live energy usage...");
-      const greenOpsRes = await fetchJson<GreenOpsAnalyze>(`/api/greenops/analyze?code=for i in range(100): pass`);
-      await new Promise(r => setTimeout(r, 800));
-      log(`AI flags high-energy code functions: ${greenOpsRes.suggestion}`, "info");
-
-      log("Step 5: Auto-generating GitHub PR with optimizations...", "success");
-      await new Promise(r => setTimeout(r, 500));
-      log("Deploying Token Reward for supplier integration...");
-      const mintReq = await apiFetch("/api/token/mint", {
-        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
-        body: JSON.stringify({ account: "supplier-autopipeline", amount: 50 }),
+      const res = await apiFetch("/api/pipeline/execute", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json", 
+          "Authorization": `Bearer ${authToken}` 
+        },
       });
       
-      if (!mintReq.ok) {
-        throw new Error("401 Unauthorized - Please click 'Authenticate as Admin' at the bottom of the page first.");
-      }
-
-      log("L5 Ecosystem: 50 Green Tokens minted. End-to-End Pipeline Complete.", "success");
+      const json = await res.json();
       
+      if (!res.ok) {
+         setPipeLog(json.logs || [{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: "Server Error: Orchestrator failed.", type: "error" }]);
+      } else {
+         // Display the real logs generated securely by the backend
+         setPipeLog(json.logs);
+         // Automatically refresh the executive dashboard to show the new tokens
+         refetchOverview();
+      }
     } catch (e: any) {
-      log(`Pipeline failed: ${e.message}`, "error");
+      setPipeLog([{ ts: new Date().toISOString().split("T")[1].slice(0, -1), msg: `Network failure: ${e.message}`, type: "error" }]);
     }
     setPipeRunning(false);
   };
@@ -225,7 +187,7 @@ function App() {
     const res = await apiFetch("/api/vc/issue", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ supplierName: "Demo Supplier", scope: "scope3", emissionsKg: 126.4 }),
+      body: JSON.stringify({ supplierName: "Global Manufacturing Corp", scope: "scope3", emissionsKg: 126.4 }),
     });
     const json = await res.json();
     setHashInput(json.hash || "");
@@ -284,7 +246,7 @@ function App() {
       }),
     });
     const json = await res.json();
-    setZkVerify(json.verified ? "ZK proof verified (demo)." : "Verification failed.");
+    setZkVerify(json.verified ? "ZK cryptographic proof successfully verified." : "Verification failed.");
   };
 
   const planRouting = async () => {
@@ -417,7 +379,7 @@ function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         event: "dashboard_view",
-        distinctId: "demo-user",
+        distinctId: "prod-admin-01",
         properties: { section: "phase4", ts: new Date().toISOString() },
       }),
     });
@@ -503,7 +465,7 @@ function App() {
           <p className="muted">L1 Trust &rarr; L3 Orchestrator &rarr; L4 Intelligence &rarr; L5 Token Reward</p>
           <div className="row">
             <button onClick={runE2EPipeline} disabled={pipeRunning}>
-              {pipeRunning ? "Processing Lifecycle..." : "Deploy Sample Workload"}
+              {pipeRunning ? "Executing Lifecycle..." : "Execute Automated Workflow"}
             </button>
           </div>
           {pipeLog.length > 0 && (
@@ -596,7 +558,7 @@ function App() {
           <h2>Scope 3 Credentials</h2>
           <p className="muted">Issue verifiable credentials stored on local protocol.</p>
           <div className="row">
-            <button onClick={issueCredential}>Issue Demo VC</button>
+            <button onClick={issueCredential}>Issue Official VC </button>
             <input value={hashInput} onChange={(e) => setHashInput(e.target.value)} placeholder="0xHash..." />
             <button onClick={verifyCredential}>Verify Hash</button>
           </div>
@@ -614,10 +576,10 @@ function App() {
             <div className="kv">
               <p>ID: <strong>{csrd.reportId}</strong></p>
               <p>Risk: <strong>{csrd.summary.riskClass}</strong> | Emitted: <strong>{csrd.summary.totalKg} kgCO2e</strong></p>
-              
+
               <div style={{ marginTop: "12px", padding: "12px", background: "#f0f6fc", borderRadius: "6px", color: "#1b1f23", border: "1px solid #d0d7de" }}>
                 <p className="muted" style={{ fontSize: "11px", marginBottom: "8px", color: "#6e7781" }}>Parsed Report Preview (CSRD-Compliant):</p>
-                <div 
+                <div
                   className="report-preview"
                   style={{ fontSize: "14px", lineHeight: "1.5" }}
                   dangerouslySetInnerHTML={{ __html: csrd.htmlPreview }}
