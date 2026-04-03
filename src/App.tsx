@@ -3,6 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import "./index.css";
 
+// ── API Base URL ──────────────────────────────────────────────────────
+// Production: VITE_API_BASE_URL from .env.production (e.g., https://api.cloudgreen.dev)
+// Development: undefined → "" (empty string, so Vite proxy handles /api → localhost:8787)
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, "") ?? "";
+const GQL_URL = (import.meta.env.VITE_GRAPHQL_URL as string | undefined) ?? "http://localhost:4000/graphql";
+
+/** Wrapper around fetch() that prepends API_BASE to relative /api/ paths. */
+function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${API_BASE}${path}`, init);
+}
+
 type Dashboard = {
   signal: { intensity: number; mode: string; source: string; ts: string };
   historical: { hour: string; intensity: number }[];
@@ -66,7 +77,7 @@ type AnalyticsSummary = {
 };
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(`${API_BASE}${url}`);
   if (!res.ok) throw new Error("Request failed");
   return res.json();
 }
@@ -155,12 +166,12 @@ function App() {
       await new Promise(r => setTimeout(r, 600));
       log("L1 Data Trust Layer: ZK-SNARK generated. Verifying claim without exposing raw data...", "info");
 
-      const zkRes = await fetch("/api/zk/proof", {
+      const zkRes = await apiFetch("/api/zk/proof", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emissionKg: 105, minKg: 50, maxKg: 200 }),
       }).then(r => r.json());
 
-      const verifyRes = await fetch("/api/zk/verify", {
+      const verifyRes = await apiFetch("/api/zk/verify", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ commitment: zkRes.commitment, proof: zkRes.proof, emissionKg: 105, minKg: 50, maxKg: 200 })
       }).then(r => r.json());
@@ -193,7 +204,7 @@ function App() {
       log("Step 5: Auto-generating GitHub PR with optimizations...", "success");
       await new Promise(r => setTimeout(r, 500));
       log("Deploying Token Reward for supplier integration...");
-      const mintReq = await fetch("/api/token/mint", {
+      const mintReq = await apiFetch("/api/token/mint", {
         method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
         body: JSON.stringify({ account: "supplier-autopipeline", amount: 50 }),
       });
@@ -211,7 +222,7 @@ function App() {
   };
 
   const issueCredential = async () => {
-    const res = await fetch("/api/vc/issue", {
+    const res = await apiFetch("/api/vc/issue", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ supplierName: "Demo Supplier", scope: "scope3", emissionsKg: 126.4 }),
@@ -222,7 +233,7 @@ function App() {
   };
 
   const verifyCredential = async () => {
-    const res = await fetch("/api/vc/verify", {
+    const res = await apiFetch("/api/vc/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ hash: hashInput }),
@@ -249,7 +260,7 @@ function App() {
   const generateZkProof = async () => {
     setZk(null);
     setZkVerify("");
-    const res = await fetch("/api/zk/proof", {
+    const res = await apiFetch("/api/zk/proof", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ emissionKg, minKg, maxKg }),
@@ -261,7 +272,7 @@ function App() {
   const verifyZkProof = async () => {
     if (!zk) return;
     setZkVerify("");
-    const res = await fetch("/api/zk/verify", {
+    const res = await apiFetch("/api/zk/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -288,7 +299,7 @@ function App() {
   };
 
   const generateCsrd = async () => {
-    const res = await fetch("/api/csrd/report", {
+    const res = await apiFetch("/api/csrd/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -304,7 +315,7 @@ function App() {
   };
 
   const onboardSupplier = async () => {
-    const res = await fetch("/api/suppliers/onboard", {
+    const res = await apiFetch("/api/suppliers/onboard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Acme Steel", email: "ops@acme.test", country: "IN" }),
@@ -320,7 +331,7 @@ function App() {
       return;
     }
     const csv = "supplier,scope,emissionsKg\nAcme Steel,scope3,120.5\nAcme Steel,scope2,54.1\nBlue Plastics,scope3,310.2";
-    const res = await fetch("/api/suppliers/emissions/upload", {
+    const res = await apiFetch("/api/suppliers/emissions/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ csv }),
@@ -351,7 +362,7 @@ function App() {
       setIncidentRes("Error: Authentication required to trigger alerts.");
       return;
     }
-    const res = await fetch("/api/oncall/incidents", {
+    const res = await apiFetch("/api/oncall/incidents", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ title: "Supplier upload latency spike", severity: "high", owner: "oncall-greenops" }),
@@ -366,7 +377,7 @@ function App() {
   };
 
   const mintToken = async () => {
-    const res = await fetch("/api/token/mint", {
+    const res = await apiFetch("/api/token/mint", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ account: mintAccount, amount: mintAmount }),
@@ -376,7 +387,7 @@ function App() {
   };
 
   const transferToken = async () => {
-    const res = await fetch("/api/token/transfer", {
+    const res = await apiFetch("/api/token/transfer", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ from: transferFrom, to: transferTo, amount: transferAmount }),
@@ -390,7 +401,7 @@ function App() {
   };
 
   const loginAsAdmin = async () => {
-    const res = await fetch("/api/auth/login", {
+    const res = await apiFetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "admin@cloudgreen.local", role: "admin" }),
@@ -401,7 +412,7 @@ function App() {
   };
 
   const trackAnalytics = async () => {
-    await fetch("/api/telemetry/data", {
+    await apiFetch("/api/telemetry/data", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -415,7 +426,7 @@ function App() {
   };
 
   const runGraphQLCheck = async () => {
-    const res = await fetch("http://localhost:4000/graphql", {
+    const res = await fetch(GQL_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

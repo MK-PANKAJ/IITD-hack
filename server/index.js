@@ -146,7 +146,19 @@ async function tryOllamaGenerate({ code, energyKw }) {
   return null;
 }
 
-app.register(cors, { origin: true });
+// ── CORS — restrict to known frontend origins ─────────────────────────
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",                      // Vite dev server
+  "http://localhost:4173",                      // Vite preview (npm run preview)
+  process.env.FRONTEND_URL,                     // Production frontend (e.g. https://app.cloudgreen.dev)
+].filter(Boolean);
+
+app.register(cors, {
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+});
 
 app.get("/api/health", async () => ({ ok: true, service: "cloudgreen-os-mvp" }));
 
