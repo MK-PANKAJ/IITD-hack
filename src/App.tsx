@@ -92,7 +92,7 @@ function App() {
   const [greenOpsError, setGreenOpsError] = useState<string | null>(null);
   const [isGreenOpsLoading, setIsGreenOpsLoading] = useState(false);
 
-  // Phase 2.2 — ZK proof demo (range proof placeholder)
+  // Phase 2.2 — ZK proof (production range proof integration)
   const [emissionKg, setEmissionKg] = useState<number>(250);
   const [minKg, setMinKg] = useState<number>(100);
   const [maxKg, setMaxKg] = useState<number>(400);
@@ -459,7 +459,7 @@ function App() {
           )}
         </section>
 
-        {/* E2E WORKLOAD PIPELINE DEMO */}
+        {/* E2E WORKLOAD PIPELINE */}
         <section className="card" style={{ gridColumn: '1 / -1', background: 'rgba(46, 160, 67, 0.05)' }}>
           <h2>End-to-End Interconnected Workflow Log</h2>
           <p className="muted">L1 Trust &rarr; L3 Orchestrator &rarr; L4 Intelligence &rarr; L5 Token Reward</p>
@@ -496,7 +496,7 @@ function App() {
             <button onClick={analyzeGreenOps} disabled={isGreenOpsLoading}>
               {isGreenOpsLoading ? "Analyzing..." : "Analyze Energy"}
             </button>
-            <button onClick={() => setCodeInput("for i in range(1000000):\n    x = i*i\n    y = x%97")}>Load Sample</button>
+            <button onClick={() => setCodeInput("for i in range(1000000):\n    x = i*i\n    y = x%97")}>Load Example Workload</button>
           </div>
           {isGreenOpsLoading ? (
             <p className="muted" style={{ fontStyle: "italic", animation: "pulse 1.5s infinite" }}>
