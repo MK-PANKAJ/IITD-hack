@@ -14,6 +14,18 @@ This repository provides a **fully runnable local implementation** of all **four
 
 ---
 
+## 🔴 Live Prototype
+
+Try the interactive prototype here:
+
+👉 **Live Demo:**  
+https://huggingface.co/spaces/mk-pankaj/IITD-hack
+
+This prototype demonstrates the **core workflow of the CloudGreen OS platform**, including carbon-aware analytics, enterprise sustainability tooling, and supply-chain intelligence features.
+
+---
+
+
 # 🚀 Platform Capabilities
 
 The system is built around **four progressive phases**.
