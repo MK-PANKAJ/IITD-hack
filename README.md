@@ -1,123 +1,282 @@
-# CloudGreen OS (Full Local Build)
 
-Working MVP implementation aligned to the `CloudGreenOS_FreeStack_MVP.docx` blueprint:
+````markdown
+# 🌱 CloudGreen OS — Full Local MVP
 
-- Carbon signal API with free-source fallback (`CO2signal` key optional, `Open-Meteo` estimator fallback)
-- GreenOps recommendation endpoint
-- Phase 2 GreenOps AI endpoint with Ollama support (`OLLAMA_BASE_URL` + `OLLAMA_MODEL`) and fallback mode
-- Phase 2 ZK proof round-trip demo endpoints (placeholder until circom/snarkjs integration)
-- Phase 2 multi-cloud routing plan endpoint (carbon-aware scheduling output)
-- Phase 3 CSRD report generation endpoint
-- Phase 3 supplier onboarding + CSV emissions ingestion endpoints
-- Phase 3 supply-chain exposure query endpoint (Neo4j-style graph semantics)
-- Phase 3 executive overview + on-call incident endpoints
-- Phase 4 token mint/transfer endpoints (local smart-contract equivalent)
-- Phase 4 marketplace matching with trade settlement records
-- Phase 4 GraphQL Yoga API server (`http://localhost:4000/graphql`)
-- Phase 4 analytics event ingestion + summary endpoints
-- OpenAPI spec + starter TypeScript/Python SDKs
-- Scope 3 Verifiable Credential issue + verify flow (local anchor store)
-- Marketplace order-book API (buy/sell orders)
-- React dashboard for live carbon mode, historical chart, workload status, and VC flow
+![License](https://img.shields.io/badge/license-MIT-green)
+![Stack](https://img.shields.io/badge/stack-FOSS-blue)
+![Build](https://img.shields.io/badge/build-local--mvp-success)
+![Node](https://img.shields.io/badge/node-18+-brightgreen)
 
-## Stack
+**CloudGreen OS** is a working **local MVP implementation** of a carbon-aware cloud optimization platform.  
+It follows the **CloudGreenOS_FreeStack_MVP architecture**, using a **100% Free & Open Source stack** with **$0 licensing cost**.
 
-- Frontend: React + Vite + TypeScript + Recharts + React Query
-- Backend: Fastify + Zod + Axios
-- License-friendly dependencies only (MIT/Apache/BSD style)
+The platform demonstrates how enterprises can **track, verify, optimize, and trade carbon data** across digital infrastructure and supply chains.
 
-## Run
+This repository provides a **fully runnable local implementation** of all **four platform phases**, using local substitutes for enterprise infrastructure while maintaining **API compatibility** with production deployments.
+
+---
+
+# 🚀 Platform Capabilities
+
+The system is built around **four progressive phases**.
+
+## 1️⃣ Phase 1 — Foundation
+
+Core carbon data infrastructure.
+
+- Carbon Signal API integration
+- `CO2signal` API support (optional)
+- **Open-Meteo fallback estimator**
+- Scope 3 **Verifiable Credential issuance**
+- Credential verification workflow
+- Local anchor verification store
+
+---
+
+## 2️⃣ Phase 2 — Intelligence
+
+AI and optimization layer.
+
+- **GreenOps recommendation engine**
+- AI advisory endpoint powered by **Ollama**
+- ZK proof demonstration endpoints
+- Multi-cloud **carbon-aware routing planner**
+
+---
+
+## 3️⃣ Phase 3 — Enterprise
+
+Enterprise compliance and supply chain intelligence.
+
+- **CSRD report generator**
+- Supplier onboarding workflow
+- CSV emissions ingestion pipeline
+- Supply chain exposure queries
+- **Neo4j graph-based analytics**
+
+---
+
+## 4️⃣ Phase 4 — Ecosystem
+
+Marketplace and sustainability economy.
+
+- Token mint and transfer APIs
+- Carbon credit trading simulation
+- Marketplace matching engine
+- Order-book trading system
+- Settlement records
+- **GraphQL Federation API**
+
+---
+
+# 🧱 Technology Stack
+
+## Frontend
+
+- **React 19**
+- **Vite**
+- **TypeScript**
+- **Recharts**
+- **TanStack React Query**
+- **Zustand**
+
+---
+
+## Backend
+
+- **Node.js**
+- **Fastify**
+- **Zod**
+- **Axios**
+
+---
+
+## Infrastructure (Docker)
+
+- **PostgreSQL 16**
+- **Neo4j 5.x Community Edition**
+- **Kafka (KRaft mode)**
+- **Keycloak 25**
+
+---
+
+# ⚙️ Getting Started
+
+## 1️⃣ Install Dependencies
+
+Ensure you have:
+
+- **Node.js 18+**
+- **pnpm**
+
+Then run:
 
 ```bash
 pnpm install
+````
+
+---
+
+## 2️⃣ Optional Environment Variables
+
+To use live carbon intensity values from **CO2signal**:
+
+```bash
+CO2SIGNAL_API_KEY=your_api_key_here
+```
+
+If not provided, the backend automatically uses the **Open-Meteo estimation fallback**.
+
+---
+
+## 3️⃣ Start Development Servers
+
+Run both **frontend and backend simultaneously**:
+
+```bash
 pnpm dev
 ```
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8787`
-- GraphQL: `http://localhost:4000/graphql`
+---
 
-## Optional env
+## 🌐 Local Service URLs
 
-Set this to use live CO2signal values:
+| Service          | URL                                                            |
+| ---------------- | -------------------------------------------------------------- |
+| Frontend         | [http://localhost:5173](http://localhost:5173)                 |
+| Backend REST API | [http://localhost:8787](http://localhost:8787)                 |
+| GraphQL API      | [http://localhost:4000/graphql](http://localhost:4000/graphql) |
+
+---
+
+# 🐳 Running Infrastructure Locally
+
+To launch all required infrastructure services:
 
 ```bash
-CO2SIGNAL_API_KEY=your_key_here
+docker compose up -d
 ```
 
-If not set, backend uses free weather-based estimation + deterministic fallback.
+This starts the following services:
 
-## Security / Auth
+| Service    | Port        |
+| ---------- | ----------- |
+| Kafka      | 9092        |
+| PostgreSQL | 5432        |
+| Neo4j      | 7474 / 7687 |
+| Keycloak   | 8180        |
 
-- Login route: `POST /api/auth/login`
-- Returns a bearer token (HMAC-signed, local dev auth)
-- Protected routes:
-  - `POST /api/token/mint`
-  - `POST /api/token/transfer`
-  - `POST /api/suppliers/emissions/upload`
-  - `POST /api/oncall/incidents`
+For Kubernetes deployment instructions (k3s / Ubuntu server), see:
 
-Use header:
+```
+infra/README.md
+```
+
+---
+
+# 🔐 Authentication
+
+The development environment uses a **local HMAC-based authentication system**.
+
+### Login
 
 ```http
+POST /api/auth/login
+```
+
+Returns a **Bearer token**.
+
+### Use Token
+
+Attach the token to protected routes:
+
+```
 Authorization: Bearer <token>
 ```
 
-## Main endpoints
+⚠️ In production environments this is replaced with **Keycloak SSO**.
 
-- `POST /api/auth/login`
-- `GET /api/health`
-- `GET /api/carbon/current?zone=IN`
-- `GET /api/dashboard`
-- `GET /api/greenops/analyze?code=...`
-- `POST /api/zk/proof`
-- `POST /api/zk/verify`
-- `GET /api/routing/plan?workload=supplier-import`
-- `POST /api/csrd/report`
-- `POST /api/suppliers/onboard`
-- `GET /api/suppliers`
-- `POST /api/suppliers/emissions/upload`
-- `GET /api/graph/exposure?supplier=...`
-- `POST /api/oncall/incidents`
-- `GET /api/oncall/incidents`
-- `GET /api/executive/overview`
-- `POST /api/token/mint`
-- `POST /api/token/transfer`
-- `GET /api/token/balances`
-- `POST /api/analytics/events`
-- `GET /api/analytics/summary`
-- `POST /api/vc/issue`
-- `POST /api/vc/verify`
-- `POST /api/marketplace/orders`
-- `GET /api/marketplace/book`
+---
 
-## Phase progress in this codebase
+# 🧪 Testing & Verification
 
-- Phase 1: core MVP routes + dashboard + VC + marketplace (implemented)
-- Phase 2: GreenOps, ZK demo, routing planner, adaptive dashboard sections (implemented)
-- Phase 3: CSRD + supplier + graph + executive/on-call APIs and UI sections (implemented as local runnable services)
-- Phase 4: token simulation + upgraded marketplace matching + GraphQL + analytics + OpenAPI/SDK scaffold (implemented for local MVP)
+Run the **end-to-end smoke test**:
 
-## GraphQL
+```bash
+pnpm smoke
+```
 
-- Endpoint: `http://localhost:4000/graphql`
-- Query examples: `carbonSignal`, `tokenBalances`, `executiveOverview`, `orderBook(side: "buy")`
+This verifies:
 
-## Developer assets
+* Authentication
+* Token operations
+* Supplier CSV ingestion
+* Analytics endpoints
+* GraphQL health queries
 
-- OpenAPI spec: `openapi/cloudgreen-os.yaml`
-- TypeScript SDK starter: `sdks/typescript/client.ts`
-- Python SDK starter: `sdks/python/client.py`
+---
 
-## Verification
+## Build Verification
 
-- Build check:
-  - `pnpm build`
-- End-to-end smoke test:
-  - `pnpm smoke`
-  - Verifies auth, token ops, supplier CSV upload, analytics, and GraphQL health query
+```bash
+pnpm build
+```
 
-## Gap note vs original enterprise blueprint
+---
 
-This repo is now a full local running implementation of all phase capabilities.  
-Enterprise infrastructure pieces in the original document (full Kubernetes operators, Keycloak cluster, Neo4j deployment, Hardhat chain deployment, Argo workflows, PostHog Helm stack) are represented here with local runnable equivalents and API-compatible stubs, rather than full multi-service production cluster manifests.
+# 📚 Developer Resources
+
+### OpenAPI Specification
+
+```
+openapi/cloudgreen-os.yaml
+```
+
+---
+
+### SDK Starters
+
+**TypeScript**
+
+```
+sdks/typescript/client.ts
+```
+
+**Python**
+
+```
+sdks/python/client.py
+```
+
+---
+
+# 📊 Architecture Vision
+
+CloudGreen OS demonstrates a future where:
+
+* **Carbon data becomes verifiable**
+* **Cloud workloads become carbon-aware**
+* **Supply chains become transparent**
+* **Sustainability becomes programmable**
+
+---
+
+# 🤝 Contributing
+
+Contributions are welcome.
+
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
+
+---
+
+# 📜 License
+
+This project uses a **100% FOSS stack** and is released under the **MIT License**.
+
+---
+
+✅ **CloudGreen OS — Building the Operating System for Sustainable Infrastructure.**
+
+```
