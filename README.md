@@ -1,5 +1,3 @@
-
-````markdown
 # 🌱 CloudGreen OS — Full Local MVP
 
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -7,7 +5,7 @@
 ![Build](https://img.shields.io/badge/build-local--mvp-success)
 ![Node](https://img.shields.io/badge/node-18+-brightgreen)
 
-**CloudGreen OS** is a working **local MVP implementation** of a carbon-aware cloud optimization platform.  
+**CloudGreen OS** is a working **local MVP implementation** of a carbon-aware cloud optimization platform.
 It follows the **CloudGreenOS_FreeStack_MVP architecture**, using a **100% Free & Open Source stack** with **$0 licensing cost**.
 
 The platform demonstrates how enterprises can **track, verify, optimize, and trade carbon data** across digital infrastructure and supply chains.
@@ -24,12 +22,12 @@ The system is built around **four progressive phases**.
 
 Core carbon data infrastructure.
 
-- Carbon Signal API integration
-- `CO2signal` API support (optional)
-- **Open-Meteo fallback estimator**
-- Scope 3 **Verifiable Credential issuance**
-- Credential verification workflow
-- Local anchor verification store
+* Carbon Signal API integration
+* `CO2signal` API support (optional)
+* **Open-Meteo fallback estimator**
+* Scope 3 **Verifiable Credential issuance**
+* Credential verification workflow
+* Local anchor verification store
 
 ---
 
@@ -37,10 +35,10 @@ Core carbon data infrastructure.
 
 AI and optimization layer.
 
-- **GreenOps recommendation engine**
-- AI advisory endpoint powered by **Ollama**
-- ZK proof demonstration endpoints
-- Multi-cloud **carbon-aware routing planner**
+* **GreenOps recommendation engine**
+* AI advisory endpoint powered by **Ollama**
+* ZK proof demonstration endpoints
+* Multi-cloud **carbon-aware routing planner**
 
 ---
 
@@ -48,11 +46,11 @@ AI and optimization layer.
 
 Enterprise compliance and supply chain intelligence.
 
-- **CSRD report generator**
-- Supplier onboarding workflow
-- CSV emissions ingestion pipeline
-- Supply chain exposure queries
-- **Neo4j graph-based analytics**
+* **CSRD report generator**
+* Supplier onboarding workflow
+* CSV emissions ingestion pipeline
+* Supply chain exposure queries
+* **Neo4j graph-based analytics**
 
 ---
 
@@ -60,12 +58,12 @@ Enterprise compliance and supply chain intelligence.
 
 Marketplace and sustainability economy.
 
-- Token mint and transfer APIs
-- Carbon credit trading simulation
-- Marketplace matching engine
-- Order-book trading system
-- Settlement records
-- **GraphQL Federation API**
+* Token mint and transfer APIs
+* Carbon credit trading simulation
+* Marketplace matching engine
+* Order-book trading system
+* Settlement records
+* **GraphQL Federation API**
 
 ---
 
@@ -73,30 +71,30 @@ Marketplace and sustainability economy.
 
 ## Frontend
 
-- **React 19**
-- **Vite**
-- **TypeScript**
-- **Recharts**
-- **TanStack React Query**
-- **Zustand**
+* **React 19**
+* **Vite**
+* **TypeScript**
+* **Recharts**
+* **TanStack React Query**
+* **Zustand**
 
 ---
 
 ## Backend
 
-- **Node.js**
-- **Fastify**
-- **Zod**
-- **Axios**
+* **Node.js**
+* **Fastify**
+* **Zod**
+* **Axios**
 
 ---
 
 ## Infrastructure (Docker)
 
-- **PostgreSQL 16**
-- **Neo4j 5.x Community Edition**
-- **Kafka (KRaft mode)**
-- **Keycloak 25**
+* **PostgreSQL 16**
+* **Neo4j 5.x Community Edition**
+* **Kafka (KRaft mode)**
+* **Keycloak 25**
 
 ---
 
@@ -106,14 +104,14 @@ Marketplace and sustainability economy.
 
 Ensure you have:
 
-- **Node.js 18+**
-- **pnpm**
+* **Node.js 18+**
+* **pnpm**
 
 Then run:
 
 ```bash
 pnpm install
-````
+```
 
 ---
 
@@ -216,7 +214,7 @@ This verifies:
 
 ---
 
-## Build Verification
+### Build Verification
 
 ```bash
 pnpm build
@@ -279,4 +277,3 @@ This project uses a **100% FOSS stack** and is released under the **MIT License*
 
 ✅ **CloudGreen OS — Building the Operating System for Sustainable Infrastructure.**
 
-```
