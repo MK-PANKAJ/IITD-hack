@@ -28,48 +28,21 @@ This prototype demonstrates the **core workflow of the CloudGreen OS platform**,
 
 # 🚀 Platform Capabilities
 
-The system is built around **four progressive phases**.
-
-## 1️⃣ Phase 1 — Foundation
-
-Core carbon data infrastructure.
-
 * Carbon Signal API integration
 * `CO2signal` API support (optional)
 * **Open-Meteo fallback estimator**
 * Scope 3 **Verifiable Credential issuance**
 * Credential verification workflow
 * Local anchor verification store
-
----
-
-## 2️⃣ Phase 2 — Intelligence
-
-AI and optimization layer.
-
 * **GreenOps recommendation engine**
 * AI advisory endpoint powered by **Ollama**
 * ZK proof demonstration endpoints
 * Multi-cloud **carbon-aware routing planner**
-
----
-
-## 3️⃣ Phase 3 — Enterprise
-
-Enterprise compliance and supply chain intelligence.
-
 * **CSRD report generator**
 * Supplier onboarding workflow
 * CSV emissions ingestion pipeline
 * Supply chain exposure queries
 * **Neo4j graph-based analytics**
-
----
-
-## 4️⃣ Phase 4 — Ecosystem
-
-Marketplace and sustainability economy.
-
 * Token mint and transfer APIs
 * Carbon credit trading simulation
 * Marketplace matching engine
